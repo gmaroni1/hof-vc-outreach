@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: hof-vc-outreach
+    env: python
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "gunicorn app:app --bind 0.0.0.0:$PORT"
+    envVars:
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: HOF_API_KEY
+        sync: false 
