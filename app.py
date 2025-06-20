@@ -646,7 +646,14 @@ Investor | HOF Capital"""
 @app.route('/api/health', methods=['GET'])
 def health_check():
     """Health check endpoint for monitoring"""
-    return jsonify({'status': 'healthy', 'service': 'HOF Capital VC Outreach'}), 200
+    return jsonify({
+        'status': 'healthy', 
+        'service': 'HOF Capital VC Outreach',
+        'api_keys_configured': {
+            'openai': bool(OPENAI_API_KEY),
+            'specter': bool(SPECTER_API_KEY)
+        }
+    }), 200
 
 @app.route('/api/generate-outreach', methods=['POST'])
 def generate_outreach():
@@ -702,7 +709,11 @@ def generate_outreach():
             },
             'metadata': {
                 'generated_at': time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime()),
-                'api_version': '1.0'
+                'api_version': '1.0',
+                'debug': {
+                    'specter_configured': bool(SPECTER_API_KEY),
+                    'attempted_email_search': bool(ceo_email is not None or (company_data.get('ceo_name') or company_data.get('founder_name')))
+                }
             }
         })
         
