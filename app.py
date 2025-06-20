@@ -430,7 +430,21 @@ class CompanyDataScraper:
                 return None
             
             company_result = response.json()
-            company_id = company_result.get('id')
+            print(f"Company enrichment response type: {type(company_result)}")
+            print(f"Company enrichment response: {str(company_result)[:500]}...")  # First 500 chars
+            
+            # Handle if result is a list (multiple companies found)
+            if isinstance(company_result, list):
+                if not company_result:
+                    print("No companies found in Specter")
+                    return None
+                # Take the first company
+                company_data = company_result[0]
+                print(f"Found {len(company_result)} companies, using first one")
+            else:
+                company_data = company_result
+            
+            company_id = company_data.get('id')
             
             if not company_id:
                 print("No company ID returned from enrichment")
