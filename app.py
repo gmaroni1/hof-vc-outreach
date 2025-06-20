@@ -475,6 +475,10 @@ class CompanyDataScraper:
                 print("No people found at company")
                 return None
             
+            # Debug: print first person to see structure
+            if people:
+                print(f"First person object: {people[0]}")
+            
             # Step 3: Look for CEO/Founder or specific person
             target_person_id = None
             
@@ -488,7 +492,7 @@ class CompanyDataScraper:
             
             # If no specific person found, look for executives
             if not target_person_id:
-                for person in people:
+                for person in people[:10]:  # Check first 10 people
                     name = person.get('name', '')
                     title = person.get('title', '').lower()
                     print(f"Checking person: {name} - {person.get('title')}")
