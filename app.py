@@ -5,7 +5,7 @@ from bs4 import BeautifulSoup
 import re
 import time
 import urllib.parse
-from typing import Dict, Optional
+from typing import Dict, Optional, Any
 import os
 from dotenv import load_dotenv
 
@@ -538,36 +538,145 @@ class CompanyDataScraper:
         
         return None
     
-    def enhance_with_openai(self, company_data: Dict[str, Optional[str]]) -> Dict[str, Optional[str]]:
-        """Use OpenAI to enhance company data and generate better descriptions"""
+    def get_specter_company_data(self, company_name: str, domain: str = None) -> Dict[str, Any]:
+        """Get comprehensive company data from Specter API"""
+        specter_data = {
+            'company_info': None,
+            'people': [],
+            'executives': [],
+            'domain': domain
+        }
+        
+        if not SPECTER_API_KEY:
+            return specter_data
+        
+        try:
+            # Get domain if not provided
+            if not domain:
+                website = self._find_company_website(company_name)
+                if website:
+                    from urllib.parse import urlparse
+                    parsed_url = urlparse(website)
+                    domain = parsed_url.netloc.replace('www.', '')
+                    specter_data['domain'] = domain
+            
+            if not domain:
+                return specter_data
+            
+            # Specter API setup
+            specter_base_url = "https://app.tryspecter.com/api/v1"
+            headers = {
+                "X-API-Key": SPECTER_API_KEY,
+                "Content-Type": "application/json"
+            }
+            
+            # Get company data
+            response = self.session.post(
+                f"{specter_base_url}/companies",
+                json={"domain": domain},
+                headers=headers,
+                timeout=10
+            )
+            
+            if response.status_code == 200:
+                company_result = response.json()
+                if isinstance(company_result, list) and company_result:
+                    specter_data['company_info'] = company_result[0]
+                else:
+                    specter_data['company_info'] = company_result
+                
+                # Get company people if we have company ID
+                company_id = specter_data['company_info'].get('id') if specter_data['company_info'] else None
+                if company_id:
+                    people_response = self.session.get(
+                        f"{specter_base_url}/companies/{company_id}/people",
+                        headers=headers,
+                        timeout=10
+                    )
+                    
+                    if people_response.status_code == 200:
+                        people = people_response.json()
+                        if isinstance(people, list):
+                            specter_data['people'] = people
+                            
+                            # Extract executives
+                            for person in people:
+                                title = person.get('title', '').lower()
+                                is_founder = person.get('is_founder', False)
+                                seniority = person.get('seniority', '').lower()
+                                
+                                if (is_founder or 
+                                    any(role in title for role in ['ceo', 'chief executive', 'founder', 'co-founder', 'cto', 'coo', 'cfo']) or
+                                    'executive' in seniority):
+                                    specter_data['executives'].append(person)
+        
+        except Exception as e:
+            print(f"Error getting Specter data: {e}")
+        
+        return specter_data
+    
+    def enhance_with_openai(self, company_data: Dict[str, Optional[str]], specter_data: Dict[str, Any] = None) -> Dict[str, Optional[str]]:
+        """Use OpenAI to enhance company data using both web scraping and Specter data"""
         if not OPENAI_API_KEY:
             print("OpenAI API key not configured")
             return company_data
         
         print(f"Enhancing data for company: {company_data['company_name']}")
         try:
-            # Create a prompt to enhance the company information
+            # Extract Specter information if available
+            specter_info = ""
+            if specter_data and specter_data.get('company_info'):
+                company_info = specter_data['company_info']
+                specter_info = f"""
+                
+                REAL DATA FROM SPECTER:
+                - Official Company Name: {company_info.get('organization_name', 'N/A')}
+                - Company Description: {company_info.get('description', 'N/A')}
+                - Company Rank: {company_info.get('organization_rank', 'N/A')}
+                - Primary Role: {company_info.get('primary_role', 'N/A')}
+                """
+                
+                if specter_data.get('executives'):
+                    specter_info += "\n\nEXECUTIVE TEAM:"
+                    for exec in specter_data['executives'][:5]:  # Top 5 executives
+                        specter_info += f"\n- {exec.get('full_name', 'Unknown')} - {exec.get('title', 'Unknown Title')}"
+                        if exec.get('is_founder'):
+                            specter_info += " (Founder)"
+                
+                if specter_data.get('people'):
+                    specter_info += f"\n\nTotal Employees Found: {len(specter_data['people'])}"
+            
+            # Create an enhanced prompt
             prompt = f"""
-            Company: {company_data['company_name']}
-            Current Description: {company_data.get('description', 'No description found')}
-            CEO/Founder: {company_data.get('ceo_name') or company_data.get('founder_name') or 'Unknown'}
-            Recent News Found: {company_data.get('recent_news', 'None')}
+            You are a top-tier venture capital analyst researching {company_data['company_name']} for potential investment.
             
-            Based on your knowledge and the information provided above, provide:
-            1. A compelling 1-2 sentence description of what this company does and their key innovation
-            2. The name of the CEO or founder (if known)
-            3. What cutting-edge technology or approach they're using
-            4. If no recent news was found above, provide any recent achievement or development you know of
-            5. A specific impressive metric or fact (like number of users, revenue growth, market share, etc.)
+            SCRAPED WEB DATA:
+            - Company: {company_data['company_name']}
+            - Description: {company_data.get('description', 'No description found')}
+            - CEO/Founder: {company_data.get('ceo_name') or company_data.get('founder_name') or 'Unknown'}
+            - Recent News: {company_data.get('recent_news', 'None')}
+            {specter_info}
             
-            Important: If recent news was already found (shown above), use that information and enhance it with context.
+            Based on ALL the information above (prioritize Specter's real data when available), provide:
             
-            Format your response as:
-            DESCRIPTION: [description]
-            CEO_NAME: [name or "Unknown"]
-            TECHNOLOGY: [their key technology/approach]
-            RECENT_NEWS: [if no news found above, provide recent development; otherwise enhance the existing news]
-            IMPRESSIVE_METRIC: [specific number or achievement]
+            1. A compelling, accurate 1-2 sentence description that captures what makes this company special and investment-worthy
+            2. The correct name of the current CEO or founder (use Specter data if available)
+            3. Their unique technology edge or market approach that differentiates them
+            4. A specific, recent achievement or milestone (funding, partnership, product launch, user growth)
+            5. An impressive, specific metric (users, revenue, growth rate, market share - be specific with numbers)
+            
+            IMPORTANT:
+            - If Specter provides executive names, use those as they are verified
+            - Combine the best insights from both data sources
+            - Be specific with numbers and facts, not generic
+            - Focus on what makes them attractive for VC investment
+            
+            Format your response EXACTLY as:
+            DESCRIPTION: [1-2 sentences, investment-focused]
+            CEO_NAME: [exact name from data]
+            TECHNOLOGY: [their specific edge/approach]
+            RECENT_NEWS: [specific recent achievement with details]
+            IMPRESSIVE_METRIC: [specific number with context]
             """
             
             import openai
@@ -576,11 +685,11 @@ class CompanyDataScraper:
             response = openai.ChatCompletion.create(
                 model="gpt-3.5-turbo",
                 messages=[
-                    {"role": "system", "content": "You are a venture capital analyst helping to research companies for outreach. Provide accurate, specific information with real metrics and achievements when known."},
+                    {"role": "system", "content": "You are a venture capital analyst conducting due diligence. Provide accurate, specific, investment-focused insights. When real data from Specter is provided, prioritize it over generic knowledge."},
                     {"role": "user", "content": prompt}
                 ],
-                temperature=0.7,
-                max_tokens=400
+                temperature=0.3,  # Lower temperature for more consistent, factual responses
+                max_tokens=500
             )
             
             # Parse the response
@@ -638,8 +747,8 @@ class CompanyDataScraper:
         
         return company_data
 
-def generate_email(company_data: Dict[str, Optional[str]]) -> str:
-    """Generate the outreach email using the enhanced template"""
+def generate_email(company_data: Dict[str, Optional[str]], specter_executives: list = None) -> str:
+    """Generate a highly personalized outreach email using all available data"""
     company_name = company_data['company_name']
     ceo_name = company_data['ceo_name'] or company_data['founder_name'] or '[CEO/Founder Name]'
     
@@ -652,81 +761,95 @@ def generate_email(company_data: Dict[str, Optional[str]]) -> str:
     technology_focus = company_data.get('technology_focus', '')
     impressive_metric = company_data.get('impressive_metric', '')
     
-    # If we have OpenAI API key, generate a more customized opening
-    if OPENAI_API_KEY and (description or recent_news):
+    # If we have OpenAI API key, generate a highly personalized email
+    if OPENAI_API_KEY:
         try:
             import openai
             openai.api_key = OPENAI_API_KEY
             
-            # Create a prompt for a personalized opening
+            # Build context about executives if available
+            exec_context = ""
+            if specter_executives:
+                exec_context = "\nKEY EXECUTIVES TO REFERENCE:"
+                for exec in specter_executives[:3]:  # Top 3 executives
+                    exec_context += f"\n- {exec.get('full_name', '')} ({exec.get('title', '')})"
+            
+            # Create a prompt for a complete personalized email
             prompt = f"""
-            Generate a personalized opening paragraph for a VC outreach email to {company_name}.
+            Write a personalized VC outreach email from Tahseen Rashid at HOF Capital to {first_name} at {company_name}.
             
-            Company: {company_name}
-            CEO/Founder: {ceo_name}
-            Description: {description}
-            Technology Focus: {technology_focus}
-            Recent News: {recent_news}
-            Impressive Metric: {impressive_metric}
+            COMPANY DETAILS:
+            - Company: {company_name}
+            - CEO/Founder: {ceo_name}
+            - What they do: {description}
+            - Their edge: {technology_focus}
+            - Recent achievement: {recent_news}
+            - Key metric: {impressive_metric}
+            {exec_context}
             
-            Create an opening that:
-            1. Starts with "Hope you're doing well!"
-            2. Congratulates them on a specific achievement or milestone (use the recent news if available, or reference their growth/technology)
-            3. Mentions a specific impressive metric or accomplishment if known (use the impressive metric field)
-            4. Shows genuine excitement about what they're building
-            5. Keep it to 2-3 sentences max
+            WRITING GUIDELINES:
+            1. Start with "Hi {first_name}," 
+            2. Open with genuine enthusiasm about a SPECIFIC aspect of their business
+            3. Reference a specific recent achievement or impressive metric
+            4. Make a thoughtful connection to why HOF Capital would be a great partner
+            5. Keep it concise (3-4 paragraphs max)
+            6. Sound authentic and conversational, not generic
+            7. Include specific details that show you understand their business
+            8. End with a soft call-to-action to connect
             
-            Example format:
-            "Hope you're doing well! Congrats on [specific achievement]! My name is Tahseen Rashid and I'm truly excited by how [company] is [what they're doing]. [Specific impressive fact about the company]!"
+            HOF CAPITAL CONTEXT TO WEAVE IN NATURALLY:
+            - $3B+ AUM multi-stage VC firm
+            - Portfolio includes: OpenAI, xAI, Epic Games, UiPath, Rimac Automobili
+            - Focus on transformative technology solving critical challenges
+            - Strong LP network of industry leaders
             
-            Return ONLY the opening paragraph, nothing else.
+            TONE: Professional but warm, specific not generic, excited but not overly salesy
+            
+            Write the complete email now:
             """
             
             response = openai.ChatCompletion.create(
                 model="gpt-3.5-turbo",
                 messages=[
-                    {"role": "system", "content": "You are helping write personalized VC outreach emails. Be specific, enthusiastic, and reference real achievements."},
+                    {"role": "system", "content": "You are Tahseen Rashid, an investor at HOF Capital. Write authentic, personalized outreach emails that feel genuine and specific to each company. Avoid generic VC-speak."},
                     {"role": "user", "content": prompt}
                 ],
-                temperature=0.8,
-                max_tokens=150
+                temperature=0.7,
+                max_tokens=400
             )
             
-            custom_opening = response['choices'][0]['message']['content'].strip()
+            email = response['choices'][0]['message']['content'].strip()
             
-            # Ensure it starts with the greeting and includes the name
-            if "Hope you're doing well!" not in custom_opening:
-                custom_opening = f"Hope you're doing well! {custom_opening}"
-            if "Tahseen Rashid" not in custom_opening:
-                custom_opening = custom_opening.replace("My name is", "My name is Tahseen Rashid and I'm")
+            # Ensure it has proper signature
+            if "Tahseen" not in email[-100:]:  # Check last 100 chars
+                email += "\n\nBest,\nTahseen Rashid\nInvestor | HOF Capital"
+            
+            return email
             
         except Exception as e:
-            print(f"Error generating custom opening: {e}")
-            # Fallback to default opening
-            custom_opening = None
-    else:
-        custom_opening = None
+            print(f"Error generating personalized email: {e}")
+            # Fall through to default template
     
-    # Use custom opening if generated, otherwise use a default
-    if custom_opening:
-        opening_paragraph = custom_opening
+    # Fallback template if OpenAI fails
+    opening = f"Hope you're doing well! "
+    if recent_news and impressive_metric:
+        opening += f"Congrats on {recent_news} - {impressive_metric} is truly impressive!"
+    elif recent_news:
+        opening += f"Congrats on {recent_news}!"
+    elif impressive_metric:
+        opening += f"Really impressed by {impressive_metric}!"
     else:
-        # Default opening when we don't have enough information
-        if recent_news:
-            opening_paragraph = f"Hope you're doing well! Congrats on {recent_news.lower()}! My name is Tahseen Rashid and I'm truly excited by how {company_name} is transforming the industry."
-        else:
-            opening_paragraph = f"Hope you're doing well! Congrats on the growth and momentum with {company_name}! My name is Tahseen Rashid and I'm truly excited by what you're building."
+        opening += f"I've been following {company_name}'s journey and I'm impressed by your progress!"
     
-    # Generate the full email
     email = f"""Hi {first_name},
 
-{opening_paragraph}
+{opening} My name is Tahseen Rashid and I'm genuinely excited by how {company_name} is {description.lower() if description else 'building something transformative'}.
 
-For quick context, I'm an Investor at HOF Capital, a $3B+ AUM multi-stage VC firm that has backed transformative ventures including OpenAI, xAI, Epic Games, UiPath, and Rimac Automobili. Each year, we selectively partner with visionary founders tackling critical societal challenges through groundbreaking technology. Additionally, our LP base includes influential leaders across consumer and technology industries, providing extensive strategic value.
+For quick context, I'm an Investor at HOF Capital, a $3B+ AUM multi-stage VC firm that has backed transformative ventures including OpenAI, xAI, Epic Games, UiPath, and Rimac Automobili. We love partnering with founders who are tackling hard problems with breakthrough technology{f', especially in {technology_focus.lower()}' if technology_focus else ''}.
 
-I'd love to set up a conversation to learn more about {company_name} and explore potential ways we could support your impactful journey. Here's my calendar.
+I'd love to learn more about your vision for {company_name} and explore how HOF could support your journey. Would you be open to a quick call next week?
 
-Cheers,
+Best,
 Tahseen Rashid
 Investor | HOF Capital"""
     
@@ -768,8 +891,18 @@ def generate_outreach():
         company_data = scraper.search_company_info(company_name)
         print(f"Initial scrape results - CEO: {company_data.get('ceo_name')}, Founder: {company_data.get('founder_name')}, Description: {company_data.get('description')[:50] if company_data.get('description') else 'None'}...")
         
-        # Enhance with OpenAI if available
-        company_data = scraper.enhance_with_openai(company_data)
+        # Get Specter data for the company
+        specter_data = scraper.get_specter_company_data(company_name)
+        
+        # Enhance with OpenAI using both data sources
+        company_data = scraper.enhance_with_openai(company_data, specter_data)
+        
+        # If we found executives in Specter, update CEO name
+        if specter_data.get('executives'):
+            for exec in specter_data['executives']:
+                if exec.get('is_founder') or 'ceo' in exec.get('title', '').lower():
+                    company_data['ceo_name'] = exec.get('full_name')
+                    break
         
         # Try to find CEO/Founder email address
         ceo_email = None
@@ -777,8 +910,8 @@ def generate_outreach():
             person_name = company_data.get('ceo_name') or company_data.get('founder_name')
             ceo_email = scraper.find_email_with_specter(company_name, person_name)
         
-        # Generate email
-        email_content = generate_email(company_data)
+        # Generate email with Specter executive data
+        email_content = generate_email(company_data, specter_data.get('executives', []))
         
         # Structure the response for easy integration
         return jsonify({
