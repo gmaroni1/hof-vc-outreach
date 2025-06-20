@@ -761,97 +761,87 @@ def generate_email(company_data: Dict[str, Optional[str]], specter_executives: l
     technology_focus = company_data.get('technology_focus', '')
     impressive_metric = company_data.get('impressive_metric', '')
     
-    # If we have OpenAI API key, generate a highly personalized email
+    # Fixed email template bottom half (NEVER CHANGES)
+    fixed_bottom = f"""For quick context, I'm an Investor at HOF Capital, a $3B+ AUM multi-stage VC firm that has backed transformative ventures including OpenAI, xAI, Epic Games, UiPath, and Rimac Automobili. Each year, we selectively partner with visionary founders tackling critical societal challenges through groundbreaking technology. Additionally, our LP base includes influential leaders across consumer and technology industries, providing extensive strategic value.
+
+I'd love to set up a conversation to learn more about {company_name} and explore potential ways we could support your impactful journey. Here's my calendar.
+
+Cheers,
+Tahseen Rashid
+Investor | HOF Capital"""
+    
+    # If we have OpenAI API key, generate ONLY the personalized intro
     if OPENAI_API_KEY:
         try:
             import openai
             openai.api_key = OPENAI_API_KEY
             
-            # Build context about executives if available
-            exec_context = ""
-            if specter_executives:
-                exec_context = "\nKEY EXECUTIVES TO REFERENCE:"
-                for exec in specter_executives[:3]:  # Top 3 executives
-                    exec_context += f"\n- {exec.get('full_name', '')} ({exec.get('title', '')})"
-            
-            # Create a prompt for a complete personalized email
+            # Create a prompt for ONLY the intro paragraph
             prompt = f"""
-            Write a personalized VC outreach email from Tahseen Rashid at HOF Capital to {first_name} at {company_name}.
+            Write ONLY a brief 2-3 sentence personalized intro paragraph for a VC outreach email from Tahseen Rashid to {first_name} at {company_name}.
             
             COMPANY DETAILS:
             - Company: {company_name}
             - CEO/Founder: {ceo_name}
             - What they do: {description}
-            - Their edge: {technology_focus}
             - Recent achievement: {recent_news}
             - Key metric: {impressive_metric}
-            {exec_context}
             
-            WRITING GUIDELINES:
-            1. Start with "Hi {first_name}," 
-            2. Open with genuine enthusiasm about a SPECIFIC aspect of their business
-            3. Reference a specific recent achievement or impressive metric
-            4. Make a thoughtful connection to why HOF Capital would be a great partner
-            5. Keep it concise (3-4 paragraphs max)
-            6. Sound authentic and conversational, not generic
-            7. Include specific details that show you understand their business
-            8. End with a soft call-to-action to connect
+            REQUIREMENTS:
+            1. Start with "Hi {first_name},"
+            2. In 2-3 sentences MAX, show genuine interest by:
+               - Mentioning a SPECIFIC recent achievement, news, or impressive metric
+               - Briefly showing you understand what they do
+               - Being authentic and conversational
+            3. DO NOT include any HOF Capital context - that comes later
+            4. DO NOT include call-to-action - that comes later
+            5. Just write the greeting and 2-3 sentences of personalized interest
             
-            HOF CAPITAL CONTEXT TO WEAVE IN NATURALLY:
-            - $3B+ AUM multi-stage VC firm
-            - Portfolio includes: OpenAI, xAI, Epic Games, UiPath, Rimac Automobili
-            - Focus on transformative technology solving critical challenges
-            - Strong LP network of industry leaders
+            Example format:
+            "Hi [Name], I've been following [specific achievement/news]. [One sentence showing understanding of their business and why it's impressive]."
             
-            TONE: Professional but warm, specific not generic, excited but not overly salesy
-            
-            Write the complete email now:
+            Write ONLY the intro paragraph now:
             """
             
             response = openai.ChatCompletion.create(
                 model="gpt-3.5-turbo",
                 messages=[
-                    {"role": "system", "content": "You are Tahseen Rashid, an investor at HOF Capital. Write authentic, personalized outreach emails that feel genuine and specific to each company. Avoid generic VC-speak."},
+                    {"role": "system", "content": "You are writing a brief, genuine intro for a VC outreach email. Be specific, concise, and show real interest based on recent achievements. Maximum 2-3 sentences after greeting."},
                     {"role": "user", "content": prompt}
                 ],
-                temperature=0.7,
-                max_tokens=400
+                temperature=0.3,  # Lower temperature for consistency
+                max_tokens=150
             )
             
-            email = response['choices'][0]['message']['content'].strip()
+            intro = response['choices'][0]['message']['content'].strip()
             
-            # Ensure it has proper signature
-            if "Tahseen" not in email[-100:]:  # Check last 100 chars
-                email += "\n\nBest,\nTahseen Rashid\nInvestor | HOF Capital"
+            # Ensure the intro doesn't already contain the fixed content
+            if "HOF Capital" in intro or "calendar" in intro.lower():
+                # If it does, extract only the first paragraph
+                intro_lines = intro.split('\n')
+                intro = '\n'.join([line for line in intro_lines[:2] if "HOF Capital" not in line and "calendar" not in line.lower()])
+            
+            # Combine intro with fixed bottom
+            email = f"{intro}\n\n{fixed_bottom}"
             
             return email
             
         except Exception as e:
-            print(f"Error generating personalized email: {e}")
+            print(f"Error generating personalized intro: {e}")
             # Fall through to default template
     
     # Fallback template if OpenAI fails
-    opening = f"Hope you're doing well! "
     if recent_news and impressive_metric:
-        opening += f"Congrats on {recent_news} - {impressive_metric} is truly impressive!"
+        intro = f"Hi {first_name}, I've been following {company_name}'s incredible progress - congratulations on {recent_news}! {impressive_metric} is truly impressive and speaks to the transformative impact you're having."
     elif recent_news:
-        opening += f"Congrats on {recent_news}!"
+        intro = f"Hi {first_name}, I've been following {company_name}'s journey and was excited to see you {recent_news}. The work you're doing in {description.lower() if description else 'your space'} is truly compelling."
     elif impressive_metric:
-        opening += f"Really impressed by {impressive_metric}!"
+        intro = f"Hi {first_name}, I've been tracking {company_name}'s growth and {impressive_metric} really caught my attention. Your approach to {description.lower() if description else 'the market'} is exactly the kind of innovation we love to support."
     else:
-        opening += f"I've been following {company_name}'s journey and I'm impressed by your progress!"
+        intro = f"Hi {first_name}, I've been following {company_name} with great interest. Your work in {description.lower() if description else 'building transformative technology'} aligns perfectly with the kind of visionary companies we partner with."
     
-    email = f"""Hi {first_name},
-
-{opening} My name is Tahseen Rashid and I'm genuinely excited by how {company_name} is {description.lower() if description else 'building something transformative'}.
-
-For quick context, I'm an Investor at HOF Capital, a $3B+ AUM multi-stage VC firm that has backed transformative ventures including OpenAI, xAI, Epic Games, UiPath, and Rimac Automobili. We love partnering with founders who are tackling hard problems with breakthrough technology{f', especially in {technology_focus.lower()}' if technology_focus else ''}.
-
-I'd love to learn more about your vision for {company_name} and explore how HOF could support your journey. Would you be open to a quick call next week?
-
-Best,
-Tahseen Rashid
-Investor | HOF Capital"""
+    # Combine intro with fixed bottom
+    email = f"{intro}\n\n{fixed_bottom}"
     
     return email
 
