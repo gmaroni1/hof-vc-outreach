@@ -648,7 +648,7 @@ class CompanyDataScraper:
             
             # Create an enhanced prompt
             prompt = f"""
-            You are a top-tier venture capital analyst researching {company_data['company_name']} for potential investment.
+            You are a top-tier venture capital analyst researching {company_data['company_name']} for potential investment. Your goal is to find the most recent and impressive achievements to mention in a personalized outreach email.
             
             SCRAPED WEB DATA:
             - Company: {company_data['company_name']}
@@ -662,21 +662,21 @@ class CompanyDataScraper:
             1. A compelling, accurate 1-2 sentence description that captures what makes this company special and investment-worthy
             2. The correct name of the current CEO or founder (use Specter data if available)
             3. Their unique technology edge or market approach that differentiates them
-            4. A specific, recent achievement or milestone (funding, partnership, product launch, user growth)
-            5. An impressive, specific metric (users, revenue, growth rate, market share - be specific with numbers)
+            4. A SPECIFIC, RECENT achievement from 2024 or late 2023 (funding round with amount, major partnership, product launch, acquisition, expansion)
+            5. An impressive, SPECIFIC metric with actual numbers (e.g., "$150M Series D", "10 million users", "500% YoY growth", "$1B valuation")
             
-            IMPORTANT:
-            - If Specter provides executive names, use those as they are verified
-            - Combine the best insights from both data sources
-            - Be specific with numbers and facts, not generic
-            - Focus on what makes them attractive for VC investment
+            CRITICAL FOR EMAIL PERSONALIZATION:
+            - For RECENT_NEWS: Must be specific and recent (2023-2024). Include dates/amounts/names when possible
+            - For IMPRESSIVE_METRIC: Must include actual numbers, not vague statements
+            - If the scraped recent news mentions funding, KEEP THE EXACT AMOUNT (e.g., "$150M Series D")
+            - These will be used in the opening line of an email, so they must be accurate and impressive
             
             Format your response EXACTLY as:
             DESCRIPTION: [1-2 sentences, investment-focused]
             CEO_NAME: [exact name from data]
             TECHNOLOGY: [their specific edge/approach]
-            RECENT_NEWS: [specific recent achievement with details]
-            IMPRESSIVE_METRIC: [specific number with context]
+            RECENT_NEWS: [specific recent achievement with details - BE VERY SPECIFIC]
+            IMPRESSIVE_METRIC: [specific number with context - MUST HAVE NUMBERS]
             """
             
             import openai
