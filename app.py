@@ -485,20 +485,26 @@ class CompanyDataScraper:
             if person_name:
                 # Look for specific person by name
                 for person in people:
-                    if person.get('name', '').lower() == person_name.lower():
-                        target_person_id = person.get('id')
+                    if person.get('full_name', '').lower() == person_name.lower():
+                        target_person_id = person.get('person_id')
                         print(f"Found target person {person_name} with ID: {target_person_id}")
                         break
             
             # If no specific person found, look for executives
             if not target_person_id:
                 for person in people[:10]:  # Check first 10 people
-                    name = person.get('name', '')
+                    name = person.get('full_name', '')
                     title = person.get('title', '').lower()
+                    is_founder = person.get('is_founder', False)
+                    seniority = person.get('seniority', '').lower()
+                    
                     print(f"Checking person: {name} - {person.get('title')}")
                     
-                    if any(role in title for role in ['ceo', 'chief executive', 'founder', 'co-founder']):
-                        target_person_id = person.get('id')
+                    # Check if this person is a founder, CEO, or executive
+                    if (is_founder or 
+                        any(role in title for role in ['ceo', 'chief executive', 'founder', 'co-founder']) or
+                        'executive' in seniority):
+                        target_person_id = person.get('person_id')
                         print(f"Found executive: {name} ({person.get('title')})")
                         break
             
