@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HOF Capital - Outreach System</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #990001 0%, #660001 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            padding: 40px;
+            max-width: 800px;
+            width: 100%;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        .logo {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: #990001;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            color: #64748b;
+            font-size: 1.1rem;
+            margin-bottom: 30px;
+        }
+
+        .input-section {
+            margin-bottom: 30px;
+        }
+
+        .input-group {
+            position: relative;
+            margin-bottom: 20px;
+        }
+
+        .input-label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #374151;
+            font-size: 1rem;
+        }
+
+        .input-field {
+            width: 100%;
+            padding: 16px 20px;
+            border: 2px solid #e5e7eb;
+            border-radius: 12px;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+            background: #f9fafb;
+        }
+
+        .input-field:focus {
+            outline: none;
+            border-color: #990001;
+            background: white;
+            box-shadow: 0 0 0 3px rgba(153, 0, 1, 0.1);
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #990001 0%, #cc0001 100%);
+            color: white;
+            border: none;
+            padding: 16px 32px;
+            border-radius: 12px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            width: 100%;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(153, 0, 1, 0.3);
+        }
+
+        .btn:disabled {
+            background: #9ca3af;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            margin: 20px 0;
+        }
+
+        .loading-spinner {
+            border: 3px solid #f3f4f6;
+            border-top: 3px solid #990001;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .results {
+            display: none;
+            margin-top: 30px;
+        }
+
+        .company-info {
+            background: #f8fafc;
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            border-left: 4px solid #990001;
+        }
+
+        .company-info h3 {
+            color: #1e293b;
+            margin-bottom: 10px;
+            font-size: 1.2rem;
+        }
+
+        .company-detail {
+            margin-bottom: 8px;
+            color: #475569;
+        }
+
+        .company-detail strong {
+            color: #1e293b;
+        }
+
+        .email-output {
+            background: #f9fafb;
+            border: 2px solid #e5e7eb;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            position: relative;
+        }
+
+        .email-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .email-title {
+            font-weight: 600;
+            color: #374151;
+            font-size: 1.1rem;
+        }
+
+        .copy-btn {
+            background: #10b981;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .copy-btn:hover {
+            background: #059669;
+            transform: translateY(-1px);
+        }
+
+        .copy-btn.copied {
+            background: #059669;
+        }
+
+        .email-content {
+            white-space: pre-wrap;
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 0.9rem;
+            line-height: 1.6;
+            color: #374151;
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #e5e7eb;
+        }
+
+        .error {
+            background: #fee2e2;
+            color: #991b1b;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 20px;
+            border-left: 4px solid #dc2626;
+        }
+
+        .success-message {
+            background: #d1fae5;
+            color: #065f46;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 20px;
+            border-left: 4px solid #10b981;
+        }
+
+        @media (max-width: 640px) {
+            .container {
+                padding: 20px;
+                margin: 10px;
+            }
+            
+            .logo {
+                font-size: 2rem;
+            }
+            
+            .email-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 10px;
+            }
+            
+            .copy-btn {
+                align-self: stretch;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="logo">HOF Capital</div>
+            <div class="subtitle">Automated Outreach System</div>
+        </div>
+
+        <div class="input-section">
+            <div class="input-group">
+                <label for="companyName" class="input-label">Company Name</label>
+                <input type="text" id="companyName" class="input-field" placeholder="Enter company name (e.g., OpenAI, Stripe)">
+            </div>
+            <button id="generateBtn" class="btn">Generate Outreach Email</button>
+        </div>
+
+        <div class="loading" id="loading">
+            <div class="loading-spinner"></div>
+            <p>Researching company information...</p>
+        </div>
+
+        <div class="results" id="results">
+            <div class="company-info" id="companyInfo">
+                <h3>Company Information</h3>
+                <div class="company-detail"><strong>Company:</strong> <span id="companyNameDisplay"></span></div>
+                <div class="company-detail"><strong>CEO/Founder:</strong> <span id="ceoDisplay"></span></div>
+                <div class="company-detail"><strong>Description:</strong> <span id="descriptionDisplay"></span></div>
+            </div>
+
+            <div class="email-output">
+                <div class="email-header">
+                    <div class="email-title">Generated Outreach Email</div>
+                    <button id="copyBtn" class="copy-btn">Copy to Clipboard</button>
+                </div>
+                <div class="email-content" id="emailContent"></div>
+            </div>
+        </div>
+
+        <div id="errorMessage" class="error" style="display: none;"></div>
+        <div id="successMessage" class="success-message" style="display: none;"></div>
+    </div>
+
+    <script>
+        const companyNameInput = document.getElementById('companyName');
+        const generateBtn = document.getElementById('generateBtn');
+        const loading = document.getElementById('loading');
+        const results = document.getElementById('results');
+        const copyBtn = document.getElementById('copyBtn');
+        const errorMessage = document.getElementById('errorMessage');
+        const successMessage = document.getElementById('successMessage');
+
+        // Elements for displaying results
+        const companyNameDisplay = document.getElementById('companyNameDisplay');
+        const ceoDisplay = document.getElementById('ceoDisplay');
+        const descriptionDisplay = document.getElementById('descriptionDisplay');
+        const emailContent = document.getElementById('emailContent');
+
+        // Hide messages function
+        function hideMessages() {
+            errorMessage.style.display = 'none';
+            successMessage.style.display = 'none';
+        }
+
+        // Show error message
+        function showError(message) {
+            hideMessages();
+            errorMessage.textContent = message;
+            errorMessage.style.display = 'block';
+        }
+
+        // Show success message
+        function showSuccess(message) {
+            hideMessages();
+            successMessage.textContent = message;
+            successMessage.style.display = 'block';
+            setTimeout(() => {
+                successMessage.style.display = 'none';
+            }, 3000);
+        }
+
+        // Generate outreach email
+        async function generateOutreach() {
+            const companyName = companyNameInput.value.trim();
+            
+            if (!companyName) {
+                showError('Please enter a company name');
+                return;
+            }
+
+            hideMessages();
+            generateBtn.disabled = true;
+            generateBtn.textContent = 'Generating...';
+            loading.style.display = 'block';
+            results.style.display = 'none';
+
+            try {
+                const response = await fetch('/api/generate-outreach', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ company_name: companyName })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    // Display company information
+                    companyNameDisplay.textContent = data.company_data.company_name;
+                    ceoDisplay.textContent = data.company_data.ceo_name || data.company_data.founder_name || 'Not found';
+                    descriptionDisplay.textContent = data.company_data.description || 'Not found';
+                    
+                    // Display email content
+                    emailContent.textContent = data.email_content;
+                    
+                    // Show results
+                    results.style.display = 'block';
+                    showSuccess('Outreach email generated successfully!');
+                } else {
+                    showError(data.error || 'An error occurred while generating the email');
+                }
+            } catch (error) {
+                showError('Network error. Please check your connection and try again.');
+            } finally {
+                generateBtn.disabled = false;
+                generateBtn.textContent = 'Generate Outreach Email';
+                loading.style.display = 'none';
+            }
+        }
+
+        // Copy to clipboard
+        async function copyToClipboard() {
+            try {
+                await navigator.clipboard.writeText(emailContent.textContent);
+                copyBtn.textContent = 'Copied!';
+                copyBtn.classList.add('copied');
+                setTimeout(() => {
+                    copyBtn.textContent = 'Copy to Clipboard';
+                    copyBtn.classList.remove('copied');
+                }, 2000);
+                showSuccess('Email copied to clipboard!');
+            } catch (error) {
+                showError('Failed to copy to clipboard');
+            }
+        }
+
+        // Event listeners
+        generateBtn.addEventListener('click', generateOutreach);
+        copyBtn.addEventListener('click', copyToClipboard);
+
+        // Allow Enter key to trigger generation
+        companyNameInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                generateOutreach();
+            }
+        });
+
+        // Focus on input when page loads
+        companyNameInput.focus();
+    </script>
+</body>
+</html> 
