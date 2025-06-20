@@ -114,13 +114,16 @@ class CompanyDataScraper:
     
     def _find_company_website(self, company_name: str) -> Optional[str]:
         """Try to find the company's official website"""
-        # First, try common domain patterns
+        # First, try common domain patterns - prioritize .com
         clean_name = company_name.lower().replace(' ', '').replace('.', '').replace(',', '')
         common_domains = [
-            f"https://{clean_name}.com",
             f"https://www.{clean_name}.com",
+            f"https://{clean_name}.com",
+            f"https://www.{clean_name}.io",
             f"https://{clean_name}.io",
+            f"https://www.{clean_name}.ai",
             f"https://{clean_name}.ai",
+            f"https://www.{clean_name}.co",
             f"https://{clean_name}.co"
         ]
         
@@ -144,11 +147,12 @@ class CompanyDataScraper:
             # Look for URLs in the page text
             text = soup.get_text()
             
-            # Try to find URLs that might be the company website
-            url_pattern = rf'(https?://(?:www\.)?{re.escape(clean_name)}\.(?:com|io|ai|co|org|net))'
-            matches = re.findall(url_pattern, text, re.IGNORECASE)
-            if matches:
-                return matches[0]
+            # Try to find URLs that might be the company website - prioritize .com
+            for extension in ['.com', '.io', '.ai', '.co', '.org', '.net']:
+                url_pattern = rf'(https?://(?:www\.)?{re.escape(clean_name)}{re.escape(extension)})'
+                matches = re.findall(url_pattern, text, re.IGNORECASE)
+                if matches:
+                    return matches[0]
             
             # Look for any links in the search results
             all_links = soup.find_all('a', href=True)
@@ -162,7 +166,7 @@ class CompanyDataScraper:
         except Exception as e:
             print(f"Error finding website: {e}")
         
-        # Last resort: just use the most common pattern
+        # Last resort: use .com as it's most common
         fallback = f"https://www.{clean_name}.com"
         print(f"Using fallback domain: {fallback}")
         return fallback
