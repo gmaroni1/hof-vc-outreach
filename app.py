@@ -101,6 +101,13 @@ class CompanyDataScraper:
             if google_info['ceo_name'] and not result['ceo_name']:
                 result['ceo_name'] = google_info['ceo_name']
         
+        # Search for recent funding news and updates
+        recent_news_info = self._search_recent_funding_news(company_name)
+        if recent_news_info['recent_news']:
+            result['recent_news'] = recent_news_info['recent_news']
+        if recent_news_info['impressive_metric']:
+            result['impressive_metric'] = recent_news_info['impressive_metric']
+        
         return result
     
     def _find_company_website(self, company_name: str) -> Optional[str]:
@@ -267,6 +274,76 @@ class CompanyDataScraper:
         
         return result
     
+    def _search_recent_funding_news(self, company_name: str) -> Dict[str, Optional[str]]:
+        """Search for recent funding news and company updates"""
+        result = {'recent_news': None, 'impressive_metric': None}
+        
+        try:
+            # Search for recent funding news with current year
+            current_year = time.strftime('%Y')
+            funding_query = f"{company_name} funding round {current_year} series million billion"
+            funding_url = f"https://www.google.com/search?q={urllib.parse.quote(funding_query)}&tbs=qdr:y"  # tbs=qdr:y limits to past year
+            
+            response = self.session.get(funding_url, timeout=10)
+            soup = BeautifulSoup(response.content, 'html.parser')
+            
+            # Look for funding amounts in the search results
+            text_content = soup.get_text()
+            
+            # Pattern to find funding amounts
+            funding_patterns = [
+                rf'{company_name}.*?(?:raised|raises|secured|closed|announced).*?\$?([\d.]+)\s*(billion|million|B|M)\s*(?:Series\s*[A-Z]|funding|round)',
+                rf'\$?([\d.]+)\s*(billion|million|B|M).*?(?:Series\s*[A-Z]|funding|round).*?{company_name}',
+                rf'{company_name}.*?(?:Series\s*[A-Z]).*?\$?([\d.]+)\s*(billion|million|B|M)',
+            ]
+            
+            for pattern in funding_patterns:
+                matches = re.findall(pattern, text_content, re.IGNORECASE)
+                if matches:
+                    amount = matches[0][0]
+                    unit = matches[0][1].lower()
+                    if unit.startswith('b'):
+                        amount_str = f"${amount}B"
+                    else:
+                        amount_str = f"${amount}M"
+                    
+                    # Try to find the series information
+                    series_match = re.search(rf'Series\s*([A-Z])', text_content, re.IGNORECASE)
+                    if series_match:
+                        series = series_match.group(1)
+                        result['recent_news'] = f"closing a {amount_str} Series {series} funding round"
+                    else:
+                        result['recent_news'] = f"securing {amount_str} in funding"
+                    break
+            
+            # If no funding news, look for other recent achievements
+            if not result['recent_news']:
+                achievement_query = f"{company_name} announcement partnership product launch {current_year}"
+                achievement_url = f"https://www.google.com/search?q={urllib.parse.quote(achievement_query)}&tbs=qdr:m"  # past month
+                
+                response = self.session.get(achievement_url, timeout=10)
+                soup = BeautifulSoup(response.content, 'html.parser')
+                
+                # Look for achievement patterns
+                achievement_patterns = [
+                    rf'{company_name}.*?(?:announced|launches|partners|introduces|unveils)(.*?)(?:\.|$)',
+                    rf'{company_name}.*?(?:growth|expansion|milestone)(.*?)(?:\.|$)',
+                ]
+                
+                text_content = soup.get_text()
+                for pattern in achievement_patterns:
+                    matches = re.findall(pattern, text_content[:2000], re.IGNORECASE)  # Check first 2000 chars
+                    if matches:
+                        achievement = matches[0].strip()[:100]
+                        if len(achievement) > 20:
+                            result['recent_news'] = achievement
+                            break
+            
+        except Exception as e:
+            print(f"Error searching for recent news: {e}")
+        
+        return result
+    
     def enhance_with_openai(self, company_data: Dict[str, Optional[str]]) -> Dict[str, Optional[str]]:
         """Use OpenAI to enhance company data and generate better descriptions"""
         if not OPENAI_API_KEY:
@@ -280,19 +357,22 @@ class CompanyDataScraper:
             Company: {company_data['company_name']}
             Current Description: {company_data.get('description', 'No description found')}
             CEO/Founder: {company_data.get('ceo_name') or company_data.get('founder_name') or 'Unknown'}
+            Recent News Found: {company_data.get('recent_news', 'None')}
             
-            Based on your knowledge, provide:
+            Based on your knowledge and the information provided above, provide:
             1. A compelling 1-2 sentence description of what this company does and their key innovation
             2. The name of the CEO or founder (if known)
             3. What cutting-edge technology or approach they're using
-            4. A specific recent achievement, milestone, or development from 2024-2025 (like funding round with amount, user growth metric, product launch, major partnership, or business milestone)
+            4. If no recent news was found above, provide any recent achievement or development you know of
             5. A specific impressive metric or fact (like number of users, revenue growth, market share, etc.)
+            
+            Important: If recent news was already found (shown above), use that information and enhance it with context.
             
             Format your response as:
             DESCRIPTION: [description]
             CEO_NAME: [name or "Unknown"]
             TECHNOLOGY: [their key technology/approach]
-            RECENT_NEWS: [specific recent development with details]
+            RECENT_NEWS: [if no news found above, provide recent development; otherwise enhance the existing news]
             IMPRESSIVE_METRIC: [specific number or achievement]
             """
             
@@ -338,7 +418,12 @@ class CompanyDataScraper:
             if news_match:
                 news = news_match.group(1).strip()
                 if news and news.lower() != 'unknown':
-                    company_data['recent_news'] = news
+                    # Only update if we don't already have recent news from real-time search
+                    if not company_data.get('recent_news'):
+                        company_data['recent_news'] = news
+                    elif 'closing a $' not in company_data.get('recent_news', ''):
+                        # If we have news but it's not specific funding info, enhance it
+                        company_data['recent_news'] = news
             
             if metric_match:
                 metric = metric_match.group(1).strip()
