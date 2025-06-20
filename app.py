@@ -18,7 +18,9 @@ CORS(app, origins=["http://localhost:3000", "http://127.0.0.1:3000", "*"])  # En
 # Check if OpenAI API key is available
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 HOF_API_KEY = os.getenv('HOF_API_KEY', 'your-secure-api-key-here')  # Add your own API key for authentication
+SPECTER_API_KEY = os.getenv('SPECTER_API_KEY')  # Specter API key for email discovery
 print(f"OpenAI API Key configured: {'Yes' if OPENAI_API_KEY else 'No'}")
+print(f"Specter API Key configured: {'Yes' if SPECTER_API_KEY else 'No'}")
 
 class CompanyDataScraper:
     def __init__(self):
@@ -344,6 +346,109 @@ class CompanyDataScraper:
         
         return result
     
+    def find_email_with_specter(self, company_name: str, person_name: str = None, domain: str = None) -> Optional[str]:
+        """Find email address using Specter API enrichment endpoints"""
+        if not SPECTER_API_KEY:
+            print("Specter API key not configured")
+            return None
+        
+        try:
+            # If we don't have a domain, try to extract it from the company website
+            if not domain and company_name:
+                website = self._find_company_website(company_name)
+                if website:
+                    # Extract domain from URL
+                    from urllib.parse import urlparse
+                    parsed_url = urlparse(website)
+                    domain = parsed_url.netloc.replace('www.', '')
+            
+            # Specter API base URL (update when you get the actual base URL)
+            specter_base_url = "https://api.tryspecter.com/v1"  # Update with actual base URL
+            
+            headers = {
+                "Authorization": f"Bearer {SPECTER_API_KEY}",
+                "Content-Type": "application/json"
+            }
+            
+            # Method 1: Try to enrich person directly if we have their name
+            if person_name and domain:
+                print(f"Searching for {person_name} at {domain}")
+                
+                # Use the people enrichment endpoint
+                people_url = f"{specter_base_url}/enrich/people"
+                
+                # Prepare request data for people enrichment
+                data = {
+                    "name": person_name,
+                    "domain": domain,
+                    "company": company_name
+                }
+                
+                response = self.session.post(people_url, json=data, headers=headers, timeout=10)
+                
+                if response.status_code == 200:
+                    result = response.json()
+                    # Extract email from response (adjust based on actual API response structure)
+                    email = None
+                    if isinstance(result, dict):
+                        email = result.get('email') or result.get('data', {}).get('email')
+                    elif isinstance(result, list) and result:
+                        email = result[0].get('email')
+                    
+                    if email:
+                        print(f"Found email for {person_name}: {email}")
+                        return email
+                elif response.status_code != 404:
+                    print(f"Specter people enrichment error: {response.status_code} - {response.text}")
+            
+            # Method 2: Try company enrichment to find executives
+            if domain or company_name:
+                print(f"Searching for executives at {company_name or domain}")
+                
+                # Use the company enrichment endpoint
+                company_url = f"{specter_base_url}/enrich/companies"
+                
+                # Prepare request data for company enrichment
+                data = {
+                    "domain": domain,
+                    "name": company_name
+                }
+                
+                # Remove None values
+                data = {k: v for k, v in data.items() if v is not None}
+                
+                response = self.session.post(company_url, json=data, headers=headers, timeout=10)
+                
+                if response.status_code == 200:
+                    result = response.json()
+                    # Look for executives/people in the response
+                    people = result.get('people', []) or result.get('executives', [])
+                    
+                    if people and isinstance(people, list):
+                        # Look for CEO/Founder in the people list
+                        for person in people:
+                            title = person.get('title', '').lower()
+                            if any(role in title for role in ['ceo', 'chief executive', 'founder', 'co-founder']):
+                                email = person.get('email')
+                                if email:
+                                    print(f"Found {person.get('title')} email: {email}")
+                                    return email
+                        
+                        # If no CEO/Founder found, return first executive with email
+                        for person in people:
+                            email = person.get('email')
+                            if email:
+                                print(f"Found {person.get('title', 'executive')} email: {email}")
+                                return email
+                
+                elif response.status_code != 404:
+                    print(f"Specter company enrichment error: {response.status_code} - {response.text}")
+                
+        except Exception as e:
+            print(f"Error finding email with Specter: {e}")
+        
+        return None
+    
     def enhance_with_openai(self, company_data: Dict[str, Optional[str]]) -> Dict[str, Optional[str]]:
         """Use OpenAI to enhance company data and generate better descriptions"""
         if not OPENAI_API_KEY:
@@ -570,6 +675,12 @@ def generate_outreach():
         # Enhance with OpenAI if available
         company_data = scraper.enhance_with_openai(company_data)
         
+        # Try to find CEO/Founder email address
+        ceo_email = None
+        if company_data.get('ceo_name') or company_data.get('founder_name'):
+            person_name = company_data.get('ceo_name') or company_data.get('founder_name')
+            ceo_email = scraper.find_email_with_specter(company_name, person_name)
+        
         # Generate email
         email_content = generate_email(company_data)
         
@@ -579,6 +690,7 @@ def generate_outreach():
             'data': {
                 'company_name': company_data.get('company_name'),
                 'ceo_name': company_data.get('ceo_name') or company_data.get('founder_name'),
+                'ceo_email': ceo_email,  # New field with discovered email
                 'email_content': email_content,
                 'subject_line': f"HOF Capital - Partnership Opportunity with {company_data.get('company_name')}",
                 'company_details': {
