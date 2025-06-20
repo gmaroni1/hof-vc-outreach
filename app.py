@@ -361,6 +361,7 @@ class CompanyDataScraper:
                     from urllib.parse import urlparse
                     parsed_url = urlparse(website)
                     domain = parsed_url.netloc.replace('www.', '')
+                    print(f"Found domain: {domain}")
             
             # Specter API base URL - corrected to app.tryspecter.com
             specter_base_url = "https://app.tryspecter.com/api/v1"
@@ -374,6 +375,7 @@ class CompanyDataScraper:
             # First, we need to enrich a person or company to get their ID
             if person_name or domain:
                 print(f"Enriching {'person' if person_name else 'company'} data...")
+                print(f"Person name: {person_name}, Domain: {domain}")
                 
                 # Use the enrichment endpoint
                 if person_name and domain:
@@ -384,16 +386,27 @@ class CompanyDataScraper:
                         "domain": domain
                     }
                     
+                    print(f"Calling Specter people enrichment: POST {enrich_url}")
+                    print(f"Request data: {data}")
+                    
                     response = self.session.post(enrich_url, json=data, headers=headers, timeout=10)
+                    
+                    print(f"Specter people enrichment response status: {response.status_code}")
+                    print(f"Response text: {response.text[:500]}...")  # First 500 chars
                     
                     if response.status_code == 200:
                         result = response.json()
                         person_id = result.get('id')
+                        print(f"Person ID: {person_id}")
                         
                         if person_id:
                             # Now get the email using the person ID
                             email_url = f"{specter_base_url}/people/{person_id}/email"
+                            print(f"Getting email: GET {email_url}")
                             email_response = self.session.get(email_url, headers=headers, timeout=10)
+                            
+                            print(f"Email response status: {email_response.status_code}")
+                            print(f"Email response text: {email_response.text}")
                             
                             if email_response.status_code == 200:
                                 email_data = email_response.json()
@@ -413,28 +426,41 @@ class CompanyDataScraper:
                         "domain": domain
                     }
                     
+                    print(f"Calling Specter company enrichment: POST {enrich_url}")
+                    print(f"Request data: {data}")
+                    
                     response = self.session.post(enrich_url, json=data, headers=headers, timeout=10)
+                    
+                    print(f"Specter company enrichment response status: {response.status_code}")
+                    print(f"Response text: {response.text[:500]}...")  # First 500 chars
                     
                     if response.status_code == 200:
                         result = response.json()
                         company_id = result.get('id')
+                        print(f"Company ID: {company_id}")
                         
                         if company_id:
                             # Get company people
                             people_url = f"{specter_base_url}/companies/{company_id}/people"
+                            print(f"Getting company people: GET {people_url}")
                             people_response = self.session.get(people_url, headers=headers, timeout=10)
+                            
+                            print(f"People response status: {people_response.status_code}")
                             
                             if people_response.status_code == 200:
                                 people = people_response.json()
+                                print(f"Found {len(people)} people at company")
                                 
                                 # Look for executives
                                 for person in people:
                                     title = person.get('title', '').lower()
+                                    print(f"Checking person: {person.get('name')} - {person.get('title')}")
                                     if any(role in title for role in ['ceo', 'chief executive', 'founder', 'co-founder']):
                                         person_id = person.get('id')
                                         if person_id:
                                             # Get their email
                                             email_url = f"{specter_base_url}/people/{person_id}/email"
+                                            print(f"Getting executive email: GET {email_url}")
                                             email_response = self.session.get(email_url, headers=headers, timeout=10)
                                             
                                             if email_response.status_code == 200:
