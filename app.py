@@ -347,7 +347,7 @@ class CompanyDataScraper:
         return result
     
     def find_email_with_specter(self, company_name: str, person_name: str = None, domain: str = None) -> Optional[str]:
-        """Find email address using Specter API enrichment endpoints"""
+        """Find email address using Specter API"""
         if not SPECTER_API_KEY:
             print("Specter API key not configured")
             return None
@@ -362,90 +362,135 @@ class CompanyDataScraper:
                     parsed_url = urlparse(website)
                     domain = parsed_url.netloc.replace('www.', '')
             
-            # Specter API base URL (update when you get the actual base URL)
-            specter_base_url = "https://api.tryspecter.com/v1"  # Update with actual base URL
+            # Specter API base URL
+            specter_base_url = "https://api.tryspecter.com"
             
             headers = {
                 "Authorization": f"Bearer {SPECTER_API_KEY}",
                 "Content-Type": "application/json"
             }
             
-            # Method 1: Try to enrich person directly if we have their name
-            if person_name and domain:
-                print(f"Searching for {person_name} at {domain}")
+            # First, try to find the person using people search
+            if person_name:
+                print(f"Searching for {person_name} email...")
                 
-                # Use the people enrichment endpoint
-                people_url = f"{specter_base_url}/enrich/people"
-                
-                # Prepare request data for people enrichment
-                data = {
+                # Search for the person - using GET with query parameters
+                search_params = {
                     "name": person_name,
-                    "domain": domain,
                     "company": company_name
                 }
                 
-                response = self.session.post(people_url, json=data, headers=headers, timeout=10)
+                if domain:
+                    search_params["domain"] = domain
+                
+                # Try people search endpoint (adjust based on actual Specter API)
+                people_search_url = f"{specter_base_url}/api/v1/people/search"
+                
+                response = self.session.get(
+                    people_search_url, 
+                    params=search_params, 
+                    headers=headers, 
+                    timeout=10
+                )
                 
                 if response.status_code == 200:
                     result = response.json()
-                    # Extract email from response (adjust based on actual API response structure)
-                    email = None
-                    if isinstance(result, dict):
-                        email = result.get('email') or result.get('data', {}).get('email')
-                    elif isinstance(result, list) and result:
-                        email = result[0].get('email')
-                    
-                    if email:
-                        print(f"Found email for {person_name}: {email}")
-                        return email
-                elif response.status_code != 404:
-                    print(f"Specter people enrichment error: {response.status_code} - {response.text}")
-            
-            # Method 2: Try company enrichment to find executives
-            if domain or company_name:
-                print(f"Searching for executives at {company_name or domain}")
-                
-                # Use the company enrichment endpoint
-                company_url = f"{specter_base_url}/enrich/companies"
-                
-                # Prepare request data for company enrichment
-                data = {
-                    "domain": domain,
-                    "name": company_name
-                }
-                
-                # Remove None values
-                data = {k: v for k, v in data.items() if v is not None}
-                
-                response = self.session.post(company_url, json=data, headers=headers, timeout=10)
-                
-                if response.status_code == 200:
-                    result = response.json()
-                    # Look for executives/people in the response
-                    people = result.get('people', []) or result.get('executives', [])
+                    # Handle list or single result
+                    people = result if isinstance(result, list) else result.get('data', [])
                     
                     if people and isinstance(people, list):
-                        # Look for CEO/Founder in the people list
+                        # Look for the person and get their ID
+                        for person in people:
+                            # Check if this is the right person
+                            if person.get('name', '').lower() == person_name.lower():
+                                person_id = person.get('id')
+                                if person_id:
+                                    # Get person's email using their ID
+                                    email_url = f"{specter_base_url}/api/v1/people/{person_id}/email"
+                                    email_response = self.session.get(email_url, headers=headers, timeout=10)
+                                    
+                                    if email_response.status_code == 200:
+                                        email_data = email_response.json()
+                                        email = email_data.get('email')
+                                        if email:
+                                            print(f"Found email for {person_name}: {email}")
+                                            return email
+                                
+                                # Or check if email is already in person data
+                                email = person.get('email')
+                                if email:
+                                    print(f"Found email for {person_name}: {email}")
+                                    return email
+                
+                elif response.status_code == 404:
+                    print(f"Person not found: {person_name}")
+                else:
+                    print(f"Specter API error: {response.status_code} - {response.text}")
+            
+            # If person search didn't work, try company search
+            if company_name or domain:
+                print(f"Searching for company executives at {company_name or domain}...")
+                
+                # Try company people endpoint
+                if domain:
+                    # Use domain-based search
+                    company_people_url = f"{specter_base_url}/api/v1/companies/domain/{domain}/people"
+                else:
+                    # Use company name search
+                    company_search_url = f"{specter_base_url}/api/v1/companies/search"
+                    company_response = self.session.get(
+                        company_search_url,
+                        params={"name": company_name},
+                        headers=headers,
+                        timeout=10
+                    )
+                    
+                    if company_response.status_code == 200:
+                        companies = company_response.json()
+                        if companies and isinstance(companies, list) and companies:
+                            company_id = companies[0].get('id')
+                            if company_id:
+                                company_people_url = f"{specter_base_url}/api/v1/companies/{company_id}/people"
+                            else:
+                                return None
+                        else:
+                            return None
+                    else:
+                        return None
+                
+                # Get company people
+                people_response = self.session.get(company_people_url, headers=headers, timeout=10)
+                
+                if people_response.status_code == 200:
+                    people = people_response.json()
+                    if people and isinstance(people, list):
+                        # Look for executives
                         for person in people:
                             title = person.get('title', '').lower()
                             if any(role in title for role in ['ceo', 'chief executive', 'founder', 'co-founder']):
+                                # Get their email
+                                person_id = person.get('id')
+                                if person_id:
+                                    email_url = f"{specter_base_url}/api/v1/people/{person_id}/email"
+                                    email_response = self.session.get(email_url, headers=headers, timeout=10)
+                                    
+                                    if email_response.status_code == 200:
+                                        email_data = email_response.json()
+                                        email = email_data.get('email')
+                                        if email:
+                                            print(f"Found {person.get('title')} email: {email}")
+                                            return email
+                                
+                                # Or check if email is in person data
                                 email = person.get('email')
                                 if email:
                                     print(f"Found {person.get('title')} email: {email}")
                                     return email
-                        
-                        # If no CEO/Founder found, return first executive with email
-                        for person in people:
-                            email = person.get('email')
-                            if email:
-                                print(f"Found {person.get('title', 'executive')} email: {email}")
-                                return email
-                
-                elif response.status_code != 404:
-                    print(f"Specter company enrichment error: {response.status_code} - {response.text}")
                 
         except Exception as e:
             print(f"Error finding email with Specter: {e}")
+            import traceback
+            traceback.print_exc()
         
         return None
     
