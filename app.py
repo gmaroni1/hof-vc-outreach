@@ -762,7 +762,7 @@ def generate_email(company_data: Dict[str, Optional[str]], specter_executives: l
     impressive_metric = company_data.get('impressive_metric', '')
     
     # Fixed email template bottom half (NEVER CHANGES)
-    fixed_bottom = f"""For quick context, I'm an Investor at HOF Capital, a $3B+ AUM multi-stage VC firm that has backed transformative ventures including OpenAI, xAI, Epic Games, UiPath, and Rimac Automobili. Each year, we selectively partner with visionary founders tackling critical societal challenges through groundbreaking technology. Additionally, our LP base includes influential leaders across consumer and technology industries, providing extensive strategic value.
+    fixed_bottom = f"""For quick context, I'm an Investor at HOF Capital, a $3B+ AUM multi-stage VC firm that has backed transformative ventures including OpenAI, xAI, Epic Games, UiPath, and Rimac Automobili. Each year, we selectively partner with visionary founders tackling critical societal challenges through groundbreaking technology. Additionally, our LP base (https://hofcapital.com/partners/) includes influential leaders across consumer and technology industries, providing extensive strategic value.
 
 I'd love to set up a conversation to learn more about {company_name} and explore potential ways we could support your impactful journey. Here's my calendar: https://app.usemotion.com/meet/tahseen-rashid/trapgm
 
