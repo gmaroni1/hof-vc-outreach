@@ -114,24 +114,58 @@ class CompanyDataScraper:
     
     def _find_company_website(self, company_name: str) -> Optional[str]:
         """Try to find the company's official website"""
+        # First, try common domain patterns
+        clean_name = company_name.lower().replace(' ', '').replace('.', '').replace(',', '')
+        common_domains = [
+            f"https://{clean_name}.com",
+            f"https://www.{clean_name}.com",
+            f"https://{clean_name}.io",
+            f"https://{clean_name}.ai",
+            f"https://{clean_name}.co"
+        ]
+        
+        # Check if any of these common patterns work
+        for domain in common_domains:
+            try:
+                response = self.session.head(domain, timeout=3, allow_redirects=True)
+                if response.status_code < 400:
+                    print(f"Found website via common pattern: {domain}")
+                    return domain
+            except:
+                continue
+        
+        # If common patterns don't work, try Google search
         search_query = f"{company_name} official website"
         try:
             search_url = f"https://www.google.com/search?q={urllib.parse.quote(search_query)}"
             response = self.session.get(search_url, timeout=10)
             soup = BeautifulSoup(response.content, 'html.parser')
             
-            # Look for the first organic result
-            search_results = soup.find_all('div', class_='g')
-            for result in search_results[:3]:  # Check first 3 results
-                link_elem = result.find('a')
-                if link_elem and 'href' in link_elem.attrs:
-                    url = link_elem['href']
-                    if url.startswith('http') and not any(blocked in url for blocked in ['google.com', 'youtube.com', 'facebook.com', 'linkedin.com', 'twitter.com']):
-                        return url
+            # Look for URLs in the page text
+            text = soup.get_text()
+            
+            # Try to find URLs that might be the company website
+            url_pattern = rf'(https?://(?:www\.)?{re.escape(clean_name)}\.(?:com|io|ai|co|org|net))'
+            matches = re.findall(url_pattern, text, re.IGNORECASE)
+            if matches:
+                return matches[0]
+            
+            # Look for any links in the search results
+            all_links = soup.find_all('a', href=True)
+            for link in all_links:
+                href = link.get('href', '')
+                if href.startswith('http') and clean_name in href.lower():
+                    if not any(blocked in href for blocked in ['google.com', 'youtube.com', 'facebook.com', 'linkedin.com', 'twitter.com', 'wikipedia.org']):
+                        print(f"Found website via search: {href}")
+                        return href
+                        
         except Exception as e:
             print(f"Error finding website: {e}")
         
-        return None
+        # Last resort: just use the most common pattern
+        fallback = f"https://www.{clean_name}.com"
+        print(f"Using fallback domain: {fallback}")
+        return fallback
     
     def _scrape_company_website(self, website_url: str) -> Dict[str, Optional[str]]:
         """Scrape company website for information"""
