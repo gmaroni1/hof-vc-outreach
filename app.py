@@ -46,7 +46,7 @@ MODEL_CONFIG = {
 }
 
 # Select which model to use
-ACTIVE_MODEL = "current"  # Change this to upgrade: "gpt-4-turbo" or "gpt-4"
+ACTIVE_MODEL = "gpt-4"  # Using GPT-4 for maximum accuracy
 
 app = Flask(__name__)
 CORS(app, origins=["http://localhost:3000", "http://127.0.0.1:3000", "*"])  # Enable CORS for all origins for API access
@@ -718,7 +718,12 @@ class CompanyDataScraper:
             response = openai.ChatCompletion.create(
                 model=MODEL_CONFIG[ACTIVE_MODEL]["model"],
                 messages=[
-                    {"role": "system", "content": "You are a venture capital analyst conducting due diligence. Provide accurate, specific, investment-focused insights. When real data from Specter is provided, prioritize it over generic knowledge."},
+                    {"role": "system", "content": """You are a world-class venture capital analyst at HOF Capital conducting deep due diligence. Your analysis should be:
+1. HYPER-SPECIFIC: Use exact numbers, dates, names, and details from the provided data
+2. INVESTMENT-FOCUSED: Frame everything through the lens of what makes this company attractive to VCs
+3. ACCURATE: If data conflicts, prioritize Specter (real-time) > web scraping > general knowledge
+4. COMPREHENSIVE: Connect multiple data points to form insights
+5. CURRENT: Focus on 2023-2024 developments, not outdated information"""},
                     {"role": "user", "content": prompt}
                 ],
                 temperature=MODEL_CONFIG[ACTIVE_MODEL]["temperature"],
@@ -842,13 +847,35 @@ Investor | HOF Capital"""
             
             "Hi Brian, Just saw the news about Airbnb's Q4 2023 results with $2.2B in revenue - incredible execution! Your focus on international expansion and the new 'Rooms' category shows the continued innovation that's kept Airbnb ahead of the market."
             
+            "Hi Dylan, Congrats on Figma's $20B acquisition by Adobe - what an incredible outcome! The way you've revolutionized collaborative design and built a product that became essential for millions of designers worldwide is truly impressive."
+            
+            BAD EXAMPLES (NEVER WRITE LIKE THIS):
+            "Hi [Name], I've been impressed by your company's growth." (Too generic)
+            "Hi [Name], Congrats on your recent funding!" (Not specific enough)
+            "Hi [Name], Your company is doing great things in the industry." (No substance)
+            
+            SPECIFIC PATTERNS TO FOLLOW:
+            - Funding: "your $150M Series D led by Andreessen Horowitz"
+            - Metrics: "reaching 10 million active users" or "growing revenue 300% YoY to $50M ARR"
+            - Product launches: "the launch of [Product Name] in January 2024"
+            - Partnerships: "your partnership with Microsoft to integrate [specific feature]"
+            - Recognition: "being named to Forbes' Next Billion Dollar Startups list"
+            
             Write ONLY the intro paragraph now:
             """
             
             response = openai.ChatCompletion.create(
                 model=MODEL_CONFIG[ACTIVE_MODEL]["model"],
                 messages=[
-                    {"role": "system", "content": "You are writing a brief, genuine intro for a VC outreach email. Be specific, concise, and show real interest based on recent achievements. Maximum 2-3 sentences after greeting."},
+                    {"role": "system", "content": """You are Tahseen Rashid, an investor at HOF Capital, writing the opening of a personalized outreach email. Your writing should be:
+
+1. AUTHENTIC: Sound like a real person who has genuinely researched the company, not a template
+2. SPECIFIC: Reference exact metrics, dates, product names, funding amounts - no generic statements
+3. INSIGHTFUL: Show you understand not just what they do, but why it matters in the market
+4. CONCISE: Maximum 2-3 sentences that pack a punch
+5. CONVERSATIONAL: Professional but warm, like reaching out to a potential partner, not cold sales
+
+Remember: This is just the intro. The HOF Capital context and call-to-action come later."""},
                     {"role": "user", "content": prompt}
                 ],
                 temperature=MODEL_CONFIG[ACTIVE_MODEL]["temperature"],
@@ -856,6 +883,13 @@ Investor | HOF Capital"""
             )
             
             intro = response['choices'][0]['message']['content'].strip()
+            
+            # Log the generated intro for quality monitoring
+            print(f"\n=== GPT-4 Generated Intro ===")
+            print(f"Company: {company_name}")
+            print(f"Model: {MODEL_CONFIG[ACTIVE_MODEL]['model']}")
+            print(f"Generated intro:\n{intro}")
+            print("="*30)
             
             # Ensure the intro doesn't already contain the fixed content
             if "HOF Capital" in intro or "calendar" in intro.lower():
