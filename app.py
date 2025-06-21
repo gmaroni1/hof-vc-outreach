@@ -127,15 +127,19 @@ class CompanyDataScraper:
             company_info = self._scrape_company_website(website)
             result.update(company_info)
         
-        # If we don't have enough info, try Google search
-        if not result['description'] or not (result['founder_name'] or result['ceo_name']):
-            google_info = self._search_google(company_name)
-            if google_info['description'] and not result['description']:
-                result['description'] = google_info['description']
-            if google_info['founder_name'] and not result['founder_name']:
-                result['founder_name'] = google_info['founder_name']
-            if google_info['ceo_name'] and not result['ceo_name']:
-                result['ceo_name'] = google_info['ceo_name']
+        # Use Serper API for comprehensive search
+        serper_info = self._search_with_serper(company_name)
+        if serper_info['description'] and not result['description']:
+            result['description'] = serper_info['description']
+        if serper_info['founder_name'] and not result['founder_name']:
+            result['founder_name'] = serper_info['founder_name']
+        if serper_info['ceo_name'] and not result['ceo_name']:
+            result['ceo_name'] = serper_info['ceo_name']
+        # Add new data from Serper
+        if serper_info.get('funding_info'):
+            result['recent_news'] = serper_info['funding_info']
+        if serper_info.get('company_metrics'):
+            result['impressive_metric'] = serper_info['company_metrics']
         
         # Search for recent funding news and updates
         recent_news_info = self._search_recent_funding_news(company_name)
@@ -298,8 +302,164 @@ class CompanyDataScraper:
         
         return result
     
-    def _search_google(self, company_name: str) -> Dict[str, Optional[str]]:
-        """Search Google for company information"""
+    def _search_with_serper(self, company_name: str) -> Dict[str, Any]:
+        """Use Serper API for comprehensive web search about the company"""
+        result = {
+            'description': None, 
+            'founder_name': None, 
+            'ceo_name': None,
+            'recent_news': None,
+            'funding_info': None,
+            'company_metrics': None,
+            'recent_articles': []
+        }
+        
+        if not SERPER_API_KEY or SERPER_API_KEY == 'your_serper_api_key_here':
+            print("Serper API not configured, falling back to basic search")
+            return self._search_google_fallback(company_name)
+        
+        try:
+            # Serper API endpoint
+            serper_url = "https://google.serper.dev/search"
+            headers = {
+                "X-API-KEY": SERPER_API_KEY,
+                "Content-Type": "application/json"
+            }
+            
+            # Search 1: Company overview and description
+            overview_query = f"{company_name} company overview what they do"
+            overview_data = {
+                "q": overview_query,
+                "num": 10
+            }
+            
+            print(f"Serper search 1: {overview_query}")
+            response = self.session.post(serper_url, json=overview_data, headers=headers, timeout=10)
+            
+            if response.status_code == 200:
+                serper_results = response.json()
+                
+                # Extract description from knowledge graph or organic results
+                if 'knowledgeGraph' in serper_results:
+                    kg = serper_results['knowledgeGraph']
+                    if 'description' in kg:
+                        result['description'] = kg['description']
+                    if 'attributes' in kg:
+                        for attr in kg['attributes']:
+                            if 'CEO' in attr:
+                                result['ceo_name'] = attr['CEO']
+                            elif 'Founder' in attr:
+                                result['founder_name'] = attr['Founder']
+                
+                # Get description from organic results if not found
+                if not result['description'] and 'organic' in serper_results:
+                    for item in serper_results['organic'][:3]:
+                        snippet = item.get('snippet', '')
+                        if len(snippet) > 50 and company_name.lower() in snippet.lower():
+                            result['description'] = snippet
+                            break
+            
+            # Search 2: Recent funding and news
+            current_year = time.strftime('%Y')
+            funding_query = f"{company_name} funding round {current_year} Series million billion valuation"
+            funding_data = {
+                "q": funding_query,
+                "num": 10,
+                "tbs": "qdr:y"  # Past year
+            }
+            
+            print(f"Serper search 2: {funding_query}")
+            response = self.session.post(serper_url, json=funding_data, headers=headers, timeout=10)
+            
+            if response.status_code == 200:
+                funding_results = response.json()
+                
+                if 'organic' in funding_results:
+                    for item in funding_results['organic'][:5]:
+                        title = item.get('title', '')
+                        snippet = item.get('snippet', '')
+                        link = item.get('link', '')
+                        
+                        # Store article for reference
+                        result['recent_articles'].append({
+                            'title': title,
+                            'snippet': snippet,
+                            'link': link
+                        })
+                        
+                        # Extract funding information
+                        combined_text = f"{title} {snippet}"
+                        
+                        # Look for funding amounts
+                        funding_pattern = r'\$?([\d.]+)\s*(billion|million|B|M)\s*(?:Series\s*[A-Z]|funding|round|valuation)'
+                        matches = re.findall(funding_pattern, combined_text, re.IGNORECASE)
+                        
+                        if matches and not result['funding_info']:
+                            amount = matches[0][0]
+                            unit = matches[0][1].lower()
+                            amount_str = f"${amount}B" if unit.startswith('b') else f"${amount}M"
+                            
+                            # Extract series info
+                            series_match = re.search(r'Series\s*([A-Z])', combined_text)
+                            if series_match:
+                                result['funding_info'] = f"{amount_str} Series {series_match.group(1)}"
+                            else:
+                                result['funding_info'] = f"{amount_str} funding"
+                            
+                            # Extract valuation if present
+                            val_pattern = r'(?:valued?|valuation)\s*(?:at|of)?\s*\$?([\d.]+)\s*(billion|million|B|M)'
+                            val_matches = re.findall(val_pattern, combined_text, re.IGNORECASE)
+                            if val_matches:
+                                val_amount = val_matches[0][0]
+                                val_unit = val_matches[0][1].lower()
+                                result['company_metrics'] = f"${val_amount}B valuation" if val_unit.startswith('b') else f"${val_amount}M valuation"
+            
+            # Search 3: Leadership and founder information
+            leadership_query = f"{company_name} CEO founder leadership team"
+            leadership_data = {
+                "q": leadership_query,
+                "num": 5
+            }
+            
+            print(f"Serper search 3: {leadership_query}")
+            response = self.session.post(serper_url, json=leadership_data, headers=headers, timeout=10)
+            
+            if response.status_code == 200:
+                leadership_results = response.json()
+                
+                if 'organic' in leadership_results:
+                    for item in leadership_results['organic'][:3]:
+                        text = f"{item.get('title', '')} {item.get('snippet', '')}"
+                        
+                        # Extract CEO/Founder names
+                        ceo_patterns = [
+                            r'(?:CEO|Chief Executive Officer)[\s,:]+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)',
+                            r'([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)[\s,]+(?:CEO|Chief Executive Officer)',
+                            r'(?:founder|co-founder)[\s,:]+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)',
+                        ]
+                        
+                        for pattern in ceo_patterns:
+                            matches = re.findall(pattern, text)
+                            if matches:
+                                name = matches[0].strip()
+                                if 'CEO' in pattern and not result['ceo_name']:
+                                    result['ceo_name'] = name
+                                elif 'founder' in pattern.lower() and not result['founder_name']:
+                                    result['founder_name'] = name
+                                break
+            
+            print(f"Serper results - Description: {result['description'][:50] if result['description'] else 'None'}...")
+            print(f"Serper results - CEO: {result['ceo_name']}, Founder: {result['founder_name']}")
+            print(f"Serper results - Funding: {result['funding_info']}, Metrics: {result['company_metrics']}")
+            
+        except Exception as e:
+            print(f"Error with Serper API: {e}")
+            return self._search_google_fallback(company_name)
+        
+        return result
+    
+    def _search_google_fallback(self, company_name: str) -> Dict[str, Optional[str]]:
+        """Fallback to basic Google search if Serper fails"""
         result = {'description': None, 'founder_name': None, 'ceo_name': None}
         
         try:
@@ -650,7 +810,7 @@ class CompanyDataScraper:
         return specter_data
     
     def enhance_with_openai(self, company_data: Dict[str, Optional[str]], specter_data: Dict[str, Any] = None) -> Dict[str, Optional[str]]:
-        """Use OpenAI to enhance company data using both web scraping and Specter data"""
+        """Use OpenAI to synthesize and enhance data from all sources (Specter, Serper, web scraping)"""
         if not OPENAI_API_KEY:
             print("OpenAI API key not configured")
             return company_data
@@ -663,53 +823,76 @@ class CompanyDataScraper:
                 company_info = specter_data['company_info']
                 specter_info = f"""
                 
-                REAL DATA FROM SPECTER:
+                === SPECTER DATA (Company Database) ===
                 - Official Company Name: {company_info.get('organization_name', 'N/A')}
                 - Company Description: {company_info.get('description', 'N/A')}
                 - Company Rank: {company_info.get('organization_rank', 'N/A')}
                 - Primary Role: {company_info.get('primary_role', 'N/A')}
+                - Domain: {specter_data.get('domain', 'N/A')}
                 """
                 
                 if specter_data.get('executives'):
-                    specter_info += "\n\nEXECUTIVE TEAM:"
+                    specter_info += "\n\nEXECUTIVE TEAM FROM SPECTER:"
                     for exec in specter_data['executives'][:5]:  # Top 5 executives
                         specter_info += f"\n- {exec.get('full_name', 'Unknown')} - {exec.get('title', 'Unknown Title')}"
                         if exec.get('is_founder'):
                             specter_info += " (Founder)"
                 
                 if specter_data.get('people'):
-                    specter_info += f"\n\nTotal Employees Found: {len(specter_data['people'])}"
+                    specter_info += f"\n\nTotal Employees in Database: {len(specter_data['people'])}"
             
-            # Create an enhanced prompt
+            # Add Serper search results context
+            serper_context = ""
+            if company_data.get('recent_news') and '$' in str(company_data.get('recent_news', '')):
+                serper_context += f"\n\n=== RECENT FUNDING (from Serper search) ===\n{company_data['recent_news']}"
+            if company_data.get('impressive_metric'):
+                serper_context += f"\nKey Metric: {company_data['impressive_metric']}"
+            
+            # Create a comprehensive prompt that synthesizes all data
             prompt = f"""
-            You are a top-tier venture capital analyst researching {company_data['company_name']} for potential investment. Your goal is to find the most recent and impressive achievements to mention in a personalized outreach email.
+            You are a world-class venture capital analyst at HOF Capital researching {company_data['company_name']} for a personalized outreach email.
             
-            SCRAPED WEB DATA:
+            Your task is to synthesize ALL available data sources and provide the most accurate, up-to-date information.
+            
+            === DATA SOURCES ===
+            
+            1. WEB SCRAPING DATA:
             - Company: {company_data['company_name']}
             - Description: {company_data.get('description', 'No description found')}
             - CEO/Founder: {company_data.get('ceo_name') or company_data.get('founder_name') or 'Unknown'}
-            - Recent News: {company_data.get('recent_news', 'None')}
-            {specter_info}
+            - Website Data: {company_data.get('recent_news', 'None')}
             
-            Based on ALL the information above (prioritize Specter's real data when available), provide:
+            2. SERPER API SEARCH RESULTS:
+            {serper_context if serper_context else '- No recent funding or metrics found via search'}
             
-            1. A compelling, accurate 1-2 sentence description that captures what makes this company special and investment-worthy
-            2. The correct name of the current CEO or founder (use Specter data if available)
-            3. Their unique technology edge or market approach that differentiates them
-            4. A SPECIFIC, RECENT achievement from 2024 or late 2023 (funding round with amount, major partnership, product launch, acquisition, expansion)
-            5. An impressive, SPECIFIC metric with actual numbers (e.g., "$150M Series D", "10 million users", "500% YoY growth", "$1B valuation")
+            3. SPECTER DATABASE:
+            {specter_info if specter_info else '- No Specter data available'}
             
-            CRITICAL FOR EMAIL PERSONALIZATION:
-            - For RECENT_NEWS: Must be specific and recent (2023-2024). Include dates/amounts/names when possible
-            - For IMPRESSIVE_METRIC: Must include actual numbers, not vague statements
-            - If the scraped recent news mentions funding, KEEP THE EXACT AMOUNT (e.g., "$150M Series D")
-            - These will be used in the opening line of an email, so they must be accurate and impressive
+            === SYNTHESIS INSTRUCTIONS ===
+            
+            Based on ALL the information above, provide the MOST ACCURATE information by:
+            1. Prioritizing Specter data for executive names (it's most reliable)
+            2. Using Serper search results for recent funding/news (most current)
+            3. Combining all sources for the best company description
+            
+            Provide:
+            1. A compelling 1-2 sentence description that captures what makes this company investment-worthy
+            2. The CORRECT CEO/founder name (check Specter executives first, then other sources)
+            3. Their unique technology/market edge
+            4. The MOST RECENT achievement (prioritize 2024, then late 2023) - BE SPECIFIC with amounts/dates
+            5. The MOST IMPRESSIVE metric with actual numbers
+            
+            CRITICAL ACCURACY RULES:
+            - If Serper found funding info (e.g., "$2B from Google"), use that EXACT amount
+            - If Specter lists executives, use those EXACT names
+            - For achievements, be HYPER-SPECIFIC: dates, amounts, partner names
+            - NEVER make up information - only use what's provided
             
             Format your response EXACTLY as:
             DESCRIPTION: [1-2 sentences, investment-focused]
-            CEO_NAME: [exact name from data]
+            CEO_NAME: [exact name - check Specter executives first]
             TECHNOLOGY: [their specific edge/approach]
-            RECENT_NEWS: [specific recent achievement with details - BE VERY SPECIFIC]
+            RECENT_NEWS: [most recent achievement with EXACT details]
             IMPRESSIVE_METRIC: [specific number with context - MUST HAVE NUMBERS]
             """
             
