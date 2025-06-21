@@ -12,13 +12,46 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 
+# API Keys
+OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
+SPECTER_API_KEY = os.getenv('SPECTER_API_KEY')
+HOF_API_KEY = os.getenv('HOF_API_KEY', 'your-secure-api-key-here')
+
+# Model Configuration - Easy to switch between models
+MODEL_CONFIG = {
+    # Current: Fast and cost-effective
+    "current": {
+        "model": "gpt-3.5-turbo",
+        "temperature": 0.3,
+        "description": "Fast, cost-effective, good accuracy"
+    },
+    # Upgrade Option 1: Better accuracy, still fast
+    "gpt-3.5-turbo-16k": {
+        "model": "gpt-3.5-turbo-16k",
+        "temperature": 0.2,
+        "description": "Same speed, better context window"
+    },
+    # Upgrade Option 2: Best accuracy
+    "gpt-4": {
+        "model": "gpt-4",
+        "temperature": 0.2,
+        "description": "Best accuracy, 3-5x slower, 10x more expensive"
+    },
+    # Upgrade Option 3: Good balance
+    "gpt-4-turbo": {
+        "model": "gpt-4-turbo-preview",
+        "temperature": 0.2,
+        "description": "Great accuracy, 2x slower, 5x more expensive"
+    }
+}
+
+# Select which model to use
+ACTIVE_MODEL = "current"  # Change this to upgrade: "gpt-4-turbo" or "gpt-4"
+
 app = Flask(__name__)
 CORS(app, origins=["http://localhost:3000", "http://127.0.0.1:3000", "*"])  # Enable CORS for all origins for API access
 
 # Check if OpenAI API key is available
-OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
-HOF_API_KEY = os.getenv('HOF_API_KEY', 'your-secure-api-key-here')  # Add your own API key for authentication
-SPECTER_API_KEY = os.getenv('SPECTER_API_KEY')  # Specter API key for email discovery
 print(f"OpenAI API Key configured: {'Yes' if OPENAI_API_KEY else 'No'}")
 print(f"Specter API Key configured: {'Yes' if SPECTER_API_KEY else 'No'}")
 
@@ -683,12 +716,12 @@ class CompanyDataScraper:
             openai.api_key = OPENAI_API_KEY
             
             response = openai.ChatCompletion.create(
-                model="gpt-3.5-turbo",
+                model=MODEL_CONFIG[ACTIVE_MODEL]["model"],
                 messages=[
                     {"role": "system", "content": "You are a venture capital analyst conducting due diligence. Provide accurate, specific, investment-focused insights. When real data from Specter is provided, prioritize it over generic knowledge."},
                     {"role": "user", "content": prompt}
                 ],
-                temperature=0.3,  # Lower temperature for more consistent, factual responses
+                temperature=MODEL_CONFIG[ACTIVE_MODEL]["temperature"],
                 max_tokens=500
             )
             
@@ -797,19 +830,28 @@ Investor | HOF Capital"""
             4. DO NOT include call-to-action - that comes later
             5. Just write the greeting and 2-3 sentences of personalized interest
             
-            Example format:
-            "Hi [Name], I've been following [specific achievement/news]. [One sentence showing understanding of their business and why it's impressive]."
+            CRITICAL ACCURACY RULES:
+            - If recent news mentions a funding round, use the EXACT amount (e.g., "$150M Series D")
+            - Be specific about dates when available (e.g., "your January 2024 announcement")
+            - Name specific products, partnerships, or people when mentioned
+            - Avoid generic phrases like "impressive growth" without specifics
+            - If a metric is provided, use the exact number
+            
+            GOOD EXAMPLES:
+            "Hi Sam, I've been following OpenAI's incredible trajectory - congrats on the recent $10B valuation and ChatGPT hitting 100M users in just 2 months! The way you've democratized access to advanced AI while maintaining safety standards is exactly the kind of transformative technology we love to support."
+            
+            "Hi Brian, Just saw the news about Airbnb's Q4 2023 results with $2.2B in revenue - incredible execution! Your focus on international expansion and the new 'Rooms' category shows the continued innovation that's kept Airbnb ahead of the market."
             
             Write ONLY the intro paragraph now:
             """
             
             response = openai.ChatCompletion.create(
-                model="gpt-3.5-turbo",
+                model=MODEL_CONFIG[ACTIVE_MODEL]["model"],
                 messages=[
                     {"role": "system", "content": "You are writing a brief, genuine intro for a VC outreach email. Be specific, concise, and show real interest based on recent achievements. Maximum 2-3 sentences after greeting."},
                     {"role": "user", "content": prompt}
                 ],
-                temperature=0.3,  # Lower temperature for consistency
+                temperature=MODEL_CONFIG[ACTIVE_MODEL]["temperature"],
                 max_tokens=150
             )
             
