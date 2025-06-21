@@ -820,9 +820,19 @@ Investor | HOF Capital"""
             try:
                 import json
                 import os
-                if os.path.exists('training_examples.json'):
-                    with open('training_examples.json', 'r') as f:
+                # Try both relative and absolute paths
+                training_file = None
+                for path in ['training_examples.json', '/app/training_examples.json', os.path.join(os.path.dirname(__file__), 'training_examples.json')]:
+                    if os.path.exists(path):
+                        training_file = path
+                        break
+                
+                if training_file:
+                    with open(training_file, 'r') as f:
                         training_examples = json.load(f)
+                        print(f"Loaded {len(training_examples)} training examples from {training_file}")
+                else:
+                    print("Training examples file not found")
             except Exception as e:
                 print(f"Could not load training examples: {e}")
             
