@@ -1,0 +1,152 @@
+[
+  {
+    "company": "OpenAI",
+    "ceo_name": "Sam Altman",
+    "recent_achievement": "Launched GPT-4o and reached 200M weekly active users",
+    "key_metric": "200M weekly active users, $3.5B annualized revenue",
+    "perfect_intro": "Hi Sam, I've been closely tracking OpenAI's extraordinary growth - hitting 200M weekly active users while maintaining your mission of ensuring AGI benefits all of humanity is truly remarkable. The way you've balanced rapid commercialization with responsible AI development, especially with the recent GPT-4o launch, demonstrates the kind of transformative leadership we love to support.",
+    "category": "AI/ML",
+    "notes": "Focus on mission + metrics balance",
+    "timestamp": "2024-06-21T17:30:00Z"
+  },
+  {
+    "company": "Anthropic",
+    "ceo_name": "Dario Amodei",
+    "recent_achievement": "Claude 3 launch and $7.3B Series C funding",
+    "key_metric": "$7.3B raised at $18.4B valuation",
+    "perfect_intro": "Hi Dario, Claude 3's breakthrough performance combined with your recent $7.3B raise at an $18.4B valuation is reshaping the entire AI landscape. Your commitment to AI safety while shipping products that genuinely compete with and often surpass GPT-4 shows that responsible development and commercial success aren't mutually exclusive.",
+    "category": "AI/ML",
+    "notes": "Emphasize unique positioning vs competitors",
+    "timestamp": "2024-06-21T17:31:00Z"
+  },
+  {
+    "company": "Stripe",
+    "ceo_name": "Patrick Collison",
+    "recent_achievement": "Reached $1 trillion in total payment volume",
+    "key_metric": "$1 trillion total payment volume processed",
+    "perfect_intro": "Hi Patrick, Stripe crossing $1 trillion in total payment volume is a defining moment for global internet commerce. The infrastructure you've built has become so fundamental that it's hard to imagine the modern internet economy without it - that's the kind of category-defining impact we're passionate about supporting.",
+    "category": "Fintech",
+    "notes": "Focus on infrastructure and ecosystem impact",
+    "timestamp": "2024-06-21T17:32:00Z"
+  },
+  {
+    "company": "Canva",
+    "ceo_name": "Melanie Perkins",
+    "recent_achievement": "Reached 170M+ monthly active users and $2.3B ARR",
+    "key_metric": "170M+ MAUs, $2.3B ARR",
+    "perfect_intro": "Hi Melanie, Canva's achievement of 170M+ monthly active users and $2.3B in ARR while democratizing design globally is extraordinary. Your vision of empowering everyone to create has fundamentally changed how billions approach visual communication - that's precisely the kind of transformative impact we seek to accelerate.",
+    "category": "SaaS",
+    "notes": "Emphasize democratization and global impact",
+    "timestamp": "2024-06-21T17:33:00Z"
+  },
+  {
+    "company": "Databricks",
+    "ceo_name": "Ali Ghodsi",
+    "recent_achievement": "$10B Series J funding round at $62B valuation",
+    "key_metric": "$2.4B ARR growing 60% YoY",
+    "perfect_intro": "Hi Ali, Databricks' recent $10B raise at a $62B valuation, coupled with your $2.4B ARR growing 60% year-over-year, showcases how you're winning the data and AI platform wars. The Lakehouse architecture you pioneered is becoming the de facto standard for enterprise data infrastructure.",
+    "category": "Data/Infrastructure",
+    "notes": "Technical innovation + business metrics",
+    "timestamp": "2024-06-21T17:34:00Z"
+  },
+  {
+    "company": "Figma",
+    "ceo_name": "Dylan Field",
+    "recent_achievement": "Post-Adobe deal, continued 40% revenue growth",
+    "key_metric": "$700M+ ARR, 40% YoY growth",
+    "perfect_intro": "Hi Dylan, Figma's resilience post-Adobe situation, maintaining 40% growth to reach $700M+ ARR, proves that great products win regardless of market dynamics. Your collaborative design platform has become indispensable for product teams globally - that kind of user love is what drives exceptional outcomes.",
+    "category": "SaaS",
+    "notes": "Resilience and product-market fit focus",
+    "timestamp": "2024-06-21T17:35:00Z"
+  },
+  {
+    "company": "Notion",
+    "ceo_name": "Ivan Zhao",
+    "recent_achievement": "Launched Notion AI and reached 100M+ users",
+    "key_metric": "100M+ users, $10B valuation",
+    "perfect_intro": "Hi Ivan, Notion's evolution from note-taking app to the AI-powered workspace for 100M+ users is remarkable. Your thoughtful integration of AI while maintaining Notion's signature flexibility shows how incumbent advantages can be leveraged in the AI era - exactly the kind of strategic vision we back.",
+    "category": "Productivity",
+    "notes": "AI integration by incumbents",
+    "timestamp": "2024-06-21T17:36:00Z"
+  },
+  {
+    "company": "Perplexity",
+    "ceo_name": "Aravind Srinivas",
+    "recent_achievement": "$520M Series B at $9B valuation, 100M weekly queries",
+    "key_metric": "100M weekly queries, $9B valuation",
+    "perfect_intro": "Hi Aravind, Perplexity achieving 100M weekly queries and a $9B valuation shows you're successfully reimagining how people interact with information. Your answer engine approach is creating a new category beyond traditional search - that's the kind of paradigm shift that defines generational companies.",
+    "category": "AI/Search",
+    "notes": "Category creation emphasis",
+    "timestamp": "2024-06-21T17:37:00Z"
+  },
+  {
+    "company": "Rippling",
+    "ceo_name": "Parker Conrad",
+    "recent_achievement": "$13.4B valuation, $700M ARR growing 80% YoY",
+    "key_metric": "$700M ARR, 80% YoY growth",
+    "perfect_intro": "Hi Parker, Rippling's compound startup approach is validated by your $700M ARR growing 80% year-over-year. Building the employee data platform that connects HR, IT, and Finance into one system is the kind of ambitious, systematic rethinking of enterprise software we love to support.",
+    "category": "HR Tech",
+    "notes": "Compound startup strategy",
+    "timestamp": "2024-06-21T17:38:00Z"
+  },
+  {
+    "company": "Scale AI",
+    "ceo_name": "Alexandr Wang",
+    "recent_achievement": "$14B valuation, powering AI for OpenAI, Meta, Microsoft",
+    "key_metric": "$600M+ ARR, 2x YoY growth",
+    "perfect_intro": "Hi Alex, Scale AI reaching a $14B valuation while becoming the data engine behind OpenAI, Meta, and Microsoft's AI ambitions is incredible. Your position as the critical infrastructure layer for AI development makes Scale indispensable to the entire ecosystem - that's true platform power.",
+    "category": "AI/Infrastructure",
+    "notes": "Ecosystem positioning",
+    "timestamp": "2024-06-21T17:39:00Z"
+  },
+  {
+    "company": "Hugging Face",
+    "ceo_name": "Clément Delangue",
+    "recent_achievement": "$235M Series D at $4.5B valuation, 5M+ developers",
+    "key_metric": "5M+ developers, 1M+ models hosted",
+    "perfect_intro": "Hi Clément, Hugging Face becoming home to 5M+ developers and 1M+ models demonstrates how you've built the GitHub for AI. Your open-source first approach while building a sustainable business model around it shows that community and commercialization can beautifully coexist.",
+    "category": "AI/ML",
+    "notes": "Open source + commercial balance",
+    "timestamp": "2024-06-21T17:40:00Z"
+  },
+  {
+    "company": "Anduril",
+    "ceo_name": "Palmer Luckey",
+    "recent_achievement": "$1.5B Series F at $14B valuation, major DoD contracts",
+    "key_metric": "$500M+ in contracts, $14B valuation",
+    "perfect_intro": "Hi Palmer, Anduril's $14B valuation and growing DoD contract wins prove that Silicon Valley can successfully innovate in defense tech. Your approach of building products first rather than chasing contracts is transforming how the defense industry operates - that's the kind of systemic change we champion.",
+    "category": "Defense Tech",
+    "notes": "Industry transformation angle",
+    "timestamp": "2024-06-21T17:41:00Z"
+  },
+  {
+    "company": "Ramp",
+    "ceo_name": "Eric Glyman",
+    "recent_achievement": "Reached $300M ARR in under 5 years",
+    "key_metric": "$300M ARR, 4x YoY growth",
+    "perfect_intro": "Hi Eric, Ramp hitting $300M ARR with 4x year-over-year growth in under 5 years redefines what's possible in fintech velocity. Your focus on helping companies save money rather than just spend it has created a new category in corporate cards - that customer-first innovation is what builds lasting companies.",
+    "category": "Fintech",
+    "notes": "Speed of execution + customer focus",
+    "timestamp": "2024-06-21T17:42:00Z"
+  },
+  {
+    "company": "Character.AI",
+    "ceo_name": "Noam Shazeer",
+    "recent_achievement": "200M+ users, billions of messages daily",
+    "key_metric": "200M+ users, 20B+ messages/month",
+    "perfect_intro": "Hi Noam, Character.AI's explosive growth to 200M+ users exchanging billions of messages shows you've unlocked a new form of human-AI interaction. The emotional connections users form with AI characters points to fundamentally new social dynamics - that's the kind of behavior change that creates massive markets.",
+    "category": "AI/Consumer",
+    "notes": "New user behavior patterns",
+    "timestamp": "2024-06-21T17:43:00Z"
+  },
+  {
+    "company": "Midjourney",
+    "ceo_name": "David Holz",
+    "recent_achievement": "$200M revenue, 16M+ users, bootstrapped",
+    "key_metric": "$200M revenue, profitable with 40 employees",
+    "perfect_intro": "Hi David, Midjourney achieving $200M in revenue while remaining bootstrapped and profitable with just 40 employees is extraordinary capital efficiency. You've democratized AI art creation for 16M+ users while building one of the most efficient businesses in tech - that's the kind of fundamental rethinking we admire.",
+    "category": "AI/Creative",
+    "notes": "Capital efficiency and bootstrapping",
+    "timestamp": "2024-06-21T17:44:00Z"
+  }
+] 

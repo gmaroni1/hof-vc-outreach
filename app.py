@@ -16,6 +16,7 @@ load_dotenv()
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 SPECTER_API_KEY = os.getenv('SPECTER_API_KEY')
 HOF_API_KEY = os.getenv('HOF_API_KEY', 'your-secure-api-key-here')
+SERPER_API_KEY = os.getenv('SERPER_API_KEY')
 
 # Model Configuration - Easy to switch between models
 MODEL_CONFIG = {
@@ -814,6 +815,24 @@ Investor | HOF Capital"""
             import openai
             openai.api_key = OPENAI_API_KEY
             
+            # Load training examples if available
+            training_examples = []
+            try:
+                import json
+                import os
+                if os.path.exists('training_examples.json'):
+                    with open('training_examples.json', 'r') as f:
+                        training_examples = json.load(f)
+            except Exception as e:
+                print(f"Could not load training examples: {e}")
+            
+            # Select relevant examples based on company category
+            selected_examples = []
+            if training_examples:
+                # Try to match by category or just take top examples
+                for ex in training_examples[:5]:  # Take top 5 examples
+                    selected_examples.append(ex['perfect_intro'])
+            
             # Create a prompt for ONLY the intro paragraph
             prompt = f"""
             Write ONLY a brief 2-3 sentence personalized intro paragraph for a VC outreach email from Tahseen Rashid to {first_name} at {company_name}.
@@ -842,24 +861,32 @@ Investor | HOF Capital"""
             - Avoid generic phrases like "impressive growth" without specifics
             - If a metric is provided, use the exact number
             
-            GOOD EXAMPLES:
-            "Hi Sam, I've been following OpenAI's incredible trajectory - congrats on the recent $10B valuation and ChatGPT hitting 100M users in just 2 months! The way you've democratized access to advanced AI while maintaining safety standards is exactly the kind of transformative technology we love to support."
+            PERFECT EXAMPLES FROM TRAINING DATA:
+            {chr(10).join([f'"{ex}"' for ex in selected_examples]) if selected_examples else '''
+            "Hi Sam, I've been closely tracking OpenAI's extraordinary growth - hitting 200M weekly active users while maintaining your mission of ensuring AGI benefits all of humanity is truly remarkable. The way you've balanced rapid commercialization with responsible AI development, especially with the recent GPT-4o launch, demonstrates the kind of transformative leadership we love to support."
             
-            "Hi Brian, Just saw the news about Airbnb's Q4 2023 results with $2.2B in revenue - incredible execution! Your focus on international expansion and the new 'Rooms' category shows the continued innovation that's kept Airbnb ahead of the market."
+            "Hi Patrick, Stripe crossing $1 trillion in total payment volume is a defining moment for global internet commerce. The infrastructure you've built has become so fundamental that it's hard to imagine the modern internet economy without it - that's the kind of category-defining impact we're passionate about supporting."
             
-            "Hi Dylan, Congrats on Figma's $20B acquisition by Adobe - what an incredible outcome! The way you've revolutionized collaborative design and built a product that became essential for millions of designers worldwide is truly impressive."
+            "Hi Melanie, Canva's achievement of 170M+ monthly active users and $2.3B in ARR while democratizing design globally is extraordinary. Your vision of empowering everyone to create has fundamentally changed how billions approach visual communication - that's precisely the kind of transformative impact we seek to accelerate."
+            '''}
+            
+            WINNING FORMULAS:
+            - Achievement + Impact: "[Specific achievement] is [adjective]. [How this impacts industry] - that's [connection to HOF thesis]."
+            - Metric + Vision: "[Impressive metric] while [broader mission] is [adjective]. [Strategic insight] [what HOF values]."
+            - Category Creation: "[What they're doing differently] shows you're [creating/redefining category]. [Why this matters] - that's the kind of [transformation] [HOF connection]."
             
             BAD EXAMPLES (NEVER WRITE LIKE THIS):
             "Hi [Name], I've been impressed by your company's growth." (Too generic)
             "Hi [Name], Congrats on your recent funding!" (Not specific enough)
             "Hi [Name], Your company is doing great things in the industry." (No substance)
+            "Hi [Name], I wanted to reach out about investment opportunities." (Too salesy)
             
             SPECIFIC PATTERNS TO FOLLOW:
-            - Funding: "your $150M Series D led by Andreessen Horowitz"
+            - Funding: "your $150M Series D at a $2B valuation"
             - Metrics: "reaching 10 million active users" or "growing revenue 300% YoY to $50M ARR"
-            - Product launches: "the launch of [Product Name] in January 2024"
+            - Product launches: "the launch of [Product Name] which already has 100K users"
             - Partnerships: "your partnership with Microsoft to integrate [specific feature]"
-            - Recognition: "being named to Forbes' Next Billion Dollar Startups list"
+            - Market position: "becoming the de facto standard for [specific use case]"
             
             Write ONLY the intro paragraph now:
             """
