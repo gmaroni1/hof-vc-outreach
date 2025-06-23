@@ -1458,6 +1458,9 @@ def gmail_callback():
     
     result = gmail_service.handle_callback(code, state)
     
+    # Log the result for debugging
+    print(f"Gmail callback result: {result}")
+    
     # Return a simple HTML page that closes the popup
     if result['success']:
         return f'''
@@ -1477,14 +1480,23 @@ def gmail_callback():
         </html>
         '''
     else:
+        error_details = result.get('error', 'Unknown error')
+        error_message = result.get('message', 'Failed to connect to Gmail')
         return f'''
         <html>
-            <body>
-                <h3>Connection Failed</h3>
-                <p>Error: {result.get('error', 'Unknown error')}</p>
-                <p>Please close this window and try again.</p>
+            <body style="font-family: Arial, sans-serif; padding: 20px;">
+                <h3 style="color: #d32f2f;">Connection Failed</h3>
+                <p><strong>Error:</strong> {error_message}</p>
+                <p><strong>Details:</strong> {error_details}</p>
+                <p style="color: #666; margin-top: 20px;">Please check:</p>
+                <ul style="color: #666;">
+                    <li>Your Google account has Gmail enabled</li>
+                    <li>You allowed the app permissions</li>
+                    <li>The redirect URI is correctly configured in Google Cloud Console</li>
+                </ul>
+                <p>This window will close automatically in 10 seconds...</p>
                 <script>
-                    setTimeout(function() {{ window.close(); }}, 3000);
+                    setTimeout(function() {{ window.close(); }}, 10000);
                 </script>
             </body>
         </html>
