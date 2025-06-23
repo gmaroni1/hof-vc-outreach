@@ -65,6 +65,9 @@ class CompanyDataScraper:
     
     def search_company_info(self, company_name: str) -> Dict[str, Optional[str]]:
         """Search for company information using multiple sources"""
+        start_time = time.time()
+        print(f"\n⏱️ Starting search for {company_name} at {time.strftime('%H:%M:%S')}")
+        
         result = {
             'company_name': company_name,
             'description': None,
@@ -122,14 +125,18 @@ class CompanyDataScraper:
             return result
         
         # Try to get company website first
+        website_start = time.time()
         website = self._find_company_website(company_name)
         if website:
             company_info = self._scrape_company_website(website)
             result.update(company_info)
+        print(f"⏱️ Website search took {time.time() - website_start:.2f}s")
         
         # Use Serper API for comprehensive search
         print("\n📡 CALLING SERPER API FOR WEB SEARCH...")
+        serper_start = time.time()
         serper_info = self._search_with_serper(company_name)
+        print(f"⏱️ Serper API took {time.time() - serper_start:.2f}s")
         
         # Log what we got from Serper
         print(f"📊 SERPER RESULTS:")
@@ -151,11 +158,16 @@ class CompanyDataScraper:
             result['impressive_metric'] = serper_info['company_metrics']
         
         # Search for recent funding news and updates
+        funding_start = time.time()
         recent_news_info = self._search_recent_funding_news(company_name)
         if recent_news_info['recent_news']:
             result['recent_news'] = recent_news_info['recent_news']
         if recent_news_info['impressive_metric']:
             result['impressive_metric'] = recent_news_info['impressive_metric']
+        print(f"⏱️ Funding news search took {time.time() - funding_start:.2f}s")
+        
+        total_time = time.time() - start_time
+        print(f"⏱️ Total search_company_info took {total_time:.2f}s")
         
         return result
     
@@ -747,6 +759,9 @@ class CompanyDataScraper:
     
     def get_specter_company_data(self, company_name: str, domain: str = None) -> Dict[str, Any]:
         """Get comprehensive company data from Specter API"""
+        start_time = time.time()
+        print(f"\n🔍 Starting Specter search for {company_name}")
+        
         specter_data = {
             'company_info': None,
             'people': [],
@@ -820,6 +835,7 @@ class CompanyDataScraper:
         except Exception as e:
             print(f"Error getting Specter data: {e}")
         
+        print(f"⏱️ Specter search took {time.time() - start_time:.2f}s")
         return specter_data
     
     def enhance_with_openai(self, company_data: Dict[str, Optional[str]], specter_data: Dict[str, Any] = None) -> Dict[str, Optional[str]]:
@@ -1156,6 +1172,8 @@ def health_check():
 @app.route('/api/generate-outreach', methods=['POST'])
 def generate_outreach():
     try:
+        request_start = time.time()
+        
         # Check for API key authentication
         auth_header = request.headers.get('Authorization')
         if auth_header and auth_header.startswith('Bearer '):
@@ -1169,19 +1187,25 @@ def generate_outreach():
         if not company_name:
             return jsonify({'error': 'Company name is required'}), 400
         
-        print(f"\n=== Processing company: {company_name} ===")
+        print(f"\n🚀 === Processing company: {company_name} at {time.strftime('%H:%M:%S')} ===")
         print(f"OpenAI API Key available: {'Yes' if OPENAI_API_KEY else 'No'}")
         
         # Scrape company information
         scraper = CompanyDataScraper()
+        scrape_start = time.time()
         company_data = scraper.search_company_info(company_name)
+        print(f"⏱️ Total web scraping took {time.time() - scrape_start:.2f}s")
         print(f"Initial scrape results - CEO: {company_data.get('ceo_name')}, Founder: {company_data.get('founder_name')}, Description: {company_data.get('description')[:50] if company_data.get('description') else 'None'}...")
         
         # Get Specter data for the company
+        specter_start = time.time()
         specter_data = scraper.get_specter_company_data(company_name)
+        print(f"⏱️ Total Specter API took {time.time() - specter_start:.2f}s")
         
         # Enhance with OpenAI using both data sources
+        enhance_start = time.time()
         company_data = scraper.enhance_with_openai(company_data, specter_data)
+        print(f"⏱️ OpenAI enhancement took {time.time() - enhance_start:.2f}s")
         
         # If we found executives in Specter, update CEO name
         if specter_data.get('executives'):
@@ -1200,6 +1224,12 @@ def generate_outreach():
         email_content = generate_email(company_data, specter_data.get('executives', []))
         
         # Structure the response for easy integration
+        total_time = time.time() - request_start
+        print(f"\n✅ TOTAL REQUEST TIME: {total_time:.2f}s")
+        
+        if total_time > 25:
+            print(f"⚠️  WARNING: Request took {total_time:.2f}s - approaching 30s timeout limit!")
+        
         return jsonify({
             'success': True,
             'data': {
@@ -1218,6 +1248,7 @@ def generate_outreach():
             'metadata': {
                 'generated_at': time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime()),
                 'api_version': '1.0',
+                'processing_time_seconds': round(total_time, 2),
                 'debug': {
                     'specter_configured': bool(SPECTER_API_KEY),
                     'attempted_email_search': bool(ceo_email is not None or (company_data.get('ceo_name') or company_data.get('founder_name')))
