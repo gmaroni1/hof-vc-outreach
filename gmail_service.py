@@ -11,7 +11,10 @@ import pickle
 from typing import Optional, Dict, Any
 
 # Gmail API scopes
-SCOPES = ['https://www.googleapis.com/auth/gmail.send']
+SCOPES = [
+    'https://www.googleapis.com/auth/gmail.send',
+    'https://www.googleapis.com/auth/gmail.readonly'  # Needed to get user profile
+]
 
 class GmailService:
     def __init__(self):
