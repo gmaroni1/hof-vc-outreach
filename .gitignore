@@ -28,4 +28,7 @@ instance/
 Thumbs.db
 
 # Logs
-*.log 
+*.log
+
+# Gmail OAuth tokens
+gmail_token.pickle 

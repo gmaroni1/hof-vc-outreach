@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, redirect
 from flask_cors import CORS
 import requests
 from bs4 import BeautifulSoup
@@ -10,6 +10,7 @@ import os
 from dotenv import load_dotenv
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import functools
+from gmail_service import GmailService
 
 # Load environment variables
 load_dotenv()
@@ -1239,6 +1240,47 @@ def generate_outreach():
         if not company_name:
             return jsonify({'error': 'Company name is required'}), 400
         
+        # Special test case for Gmail integration testing
+        if company_name.lower() == 'maroni test':
+            print(f"\n🧪 === TEST MODE: Processing test company 'maroni test' ===")
+            test_email_content = """Hi Giacomo, I've been following Maroni Test's innovative approach to revolutionizing enterprise software testing. Your recent achievement of reducing testing cycles by 75% while maintaining 99.9% accuracy is truly impressive - that's exactly the kind of efficiency breakthrough that transforms entire industries.
+
+For quick context, I'm an Investor at HOF Capital, a $3B+ AUM multi-stage VC firm that has backed transformative ventures including OpenAI, xAI, Epic Games, UiPath, and Rimac Automobili. Each year, we selectively partner with visionary founders tackling critical societal challenges through groundbreaking technology. Additionally, our LP base (https://hofcapital.com/partners/) includes influential leaders across consumer and technology industries, providing extensive strategic value.
+
+I'd love to set up a conversation to learn more about Maroni Test and explore potential ways we could support your impactful journey. Here's my calendar: https://app.usemotion.com/meet/tahseen-rashid/trapgm
+
+Cheers,
+Tahseen Rashid
+Investor | HOF Capital"""
+            
+            return jsonify({
+                'success': True,
+                'data': {
+                    'company_name': 'Maroni Test',
+                    'ceo_name': 'Giacomo Maroni',
+                    'ceo_email': 'gmaroni56@gmail.com',
+                    'email_content': test_email_content,
+                    'subject_line': 'HOF Capital - Partnership Opportunity with Maroni Test',
+                    'company_details': {
+                        'description': 'Enterprise software testing automation platform that uses AI to dramatically reduce QA cycles',
+                        'technology_focus': 'AI-powered test generation and autonomous bug detection',
+                        'recent_news': 'Recently closed $25M Series A led by Sequoia Capital to expand their testing automation platform',
+                        'impressive_metric': 'Reduced client testing cycles by 75% while achieving 99.9% bug detection accuracy'
+                    }
+                },
+                'metadata': {
+                    'generated_at': time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime()),
+                    'api_version': '1.0',
+                    'processing_time_seconds': 0.1,
+                    'cache_hit': False,
+                    'test_mode': True,
+                    'debug': {
+                        'specter_configured': bool(SPECTER_API_KEY),
+                        'attempted_email_search': True
+                    }
+                }
+            })
+        
         print(f"\n🚀 === Processing company: {company_name} at {time.strftime('%H:%M:%S')} ===")
         print(f"OpenAI API Key available: {'Yes' if OPENAI_API_KEY else 'No'}")
         
@@ -1380,6 +1422,89 @@ def generate_outreach():
             'error': str(e),
             'message': 'Failed to generate outreach email'
         }), 500
+
+# Gmail Integration Endpoints
+gmail_service = GmailService()
+
+@app.route('/api/gmail/auth', methods=['GET'])
+def gmail_auth():
+    """Initiate Gmail OAuth2 authentication"""
+    state = request.args.get('state', '')
+    auth_url = gmail_service.get_auth_url(state)
+    return jsonify({
+        'success': True,
+        'auth_url': auth_url
+    })
+
+@app.route('/api/gmail/callback', methods=['GET'])
+def gmail_callback():
+    """Handle Gmail OAuth2 callback"""
+    code = request.args.get('code')
+    state = request.args.get('state', '')
+    
+    if not code:
+        return jsonify({
+            'success': False,
+            'error': 'No authorization code provided'
+        }), 400
+    
+    result = gmail_service.handle_callback(code, state)
+    
+    # Redirect to frontend with result
+    frontend_url = 'http://localhost:3000' if os.getenv('FLASK_ENV') != 'production' else 'https://your-frontend-url.com'
+    if result['success']:
+        return redirect(f"{frontend_url}/gmail-connected?email={result['email']}")
+    else:
+        return redirect(f"{frontend_url}/gmail-error?error={result['error']}")
+
+@app.route('/api/gmail/status', methods=['GET'])
+def gmail_status():
+    """Check Gmail authentication status"""
+    status = gmail_service.check_auth_status()
+    return jsonify(status)
+
+@app.route('/api/gmail/send', methods=['POST'])
+def gmail_send():
+    """Send email via Gmail"""
+    data = request.get_json()
+    
+    # Validate required fields
+    to_email = data.get('to')
+    subject = data.get('subject')
+    body = data.get('body')
+    
+    if not all([to_email, subject, body]):
+        return jsonify({
+            'success': False,
+            'error': 'Missing required fields: to, subject, body'
+        }), 400
+    
+    # Optional fields
+    cc = data.get('cc')
+    bcc = data.get('bcc')
+    
+    # Send email
+    result = gmail_service.send_email(
+        to=to_email,
+        subject=subject,
+        body=body,
+        cc=cc,
+        bcc=bcc
+    )
+    
+    if result['success']:
+        return jsonify(result)
+    else:
+        # If not authenticated, return auth URL
+        if 'auth_url' in result:
+            return jsonify(result), 401
+        return jsonify(result), 500
+
+@app.route('/api/gmail/logout', methods=['POST'])
+def gmail_logout():
+    """Logout from Gmail"""
+    result = gmail_service.logout()
+    return jsonify(result)
 
 if __name__ == '__main__':
     app.run(debug=True, port=5001) 
