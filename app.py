@@ -8,6 +8,8 @@ import urllib.parse
 from typing import Dict, Optional, Any
 import os
 from dotenv import load_dotenv
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import functools
 
 # Load environment variables
 load_dotenv()
@@ -62,9 +64,11 @@ class CompanyDataScraper:
         self.session.headers.update({
             'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
         })
+        # Thread pool for concurrent API calls
+        self.executor = ThreadPoolExecutor(max_workers=3)
     
     def search_company_info(self, company_name: str) -> Dict[str, Optional[str]]:
-        """Search for company information using multiple sources"""
+        """Search for company information using multiple sources - OPTIMIZED WITH CONCURRENT CALLS"""
         start_time = time.time()
         print(f"\n⏱️ Starting search for {company_name} at {time.strftime('%H:%M:%S')}")
         
@@ -122,54 +126,79 @@ class CompanyDataScraper:
         company_lower = company_name.lower()
         if company_lower in known_companies:
             result.update(known_companies[company_lower])
+            print(f"⏱️ Using cached data for {company_name}")
             return result
         
-        # Try to get company website first
-        website_start = time.time()
-        website = self._find_company_website(company_name)
-        if website:
-            company_info = self._scrape_company_website(website)
-            result.update(company_info)
-        print(f"⏱️ Website search took {time.time() - website_start:.2f}s")
+        # Run concurrent operations using ThreadPoolExecutor
+        futures = []
         
-        # Use Serper API for comprehensive search
-        print("\n📡 CALLING SERPER API FOR WEB SEARCH...")
-        serper_start = time.time()
-        serper_info = self._search_with_serper(company_name)
-        print(f"⏱️ Serper API took {time.time() - serper_start:.2f}s")
+        # Submit website search
+        website_future = self.executor.submit(self._find_and_scrape_website, company_name)
+        futures.append(('website', website_future))
         
-        # Log what we got from Serper
-        print(f"📊 SERPER RESULTS:")
-        print(f"  - Description: {'✓' if serper_info.get('description') else '✗'}")
-        print(f"  - CEO: {serper_info.get('ceo_name', 'Not found')}")
-        print(f"  - Funding: {serper_info.get('funding_info', 'Not found')}")
-        print(f"  - Metrics: {serper_info.get('company_metrics', 'Not found')}")
+        # Submit Serper search (if configured)
+        if SERPER_API_KEY and SERPER_API_KEY != 'your_serper_api_key_here':
+            serper_future = self.executor.submit(self._search_with_serper, company_name)
+            futures.append(('serper', serper_future))
         
-        if serper_info['description'] and not result['description']:
-            result['description'] = serper_info['description']
-        if serper_info['founder_name'] and not result['founder_name']:
-            result['founder_name'] = serper_info['founder_name']
-        if serper_info['ceo_name'] and not result['ceo_name']:
-            result['ceo_name'] = serper_info['ceo_name']
-        # Add new data from Serper
-        if serper_info.get('funding_info'):
-            result['recent_news'] = serper_info['funding_info']
-        if serper_info.get('company_metrics'):
-            result['impressive_metric'] = serper_info['company_metrics']
+        # Submit funding news search
+        funding_future = self.executor.submit(self._search_recent_funding_news, company_name)
+        futures.append(('funding', funding_future))
         
-        # Search for recent funding news and updates
-        funding_start = time.time()
-        recent_news_info = self._search_recent_funding_news(company_name)
-        if recent_news_info['recent_news']:
-            result['recent_news'] = recent_news_info['recent_news']
-        if recent_news_info['impressive_metric']:
-            result['impressive_metric'] = recent_news_info['impressive_metric']
-        print(f"⏱️ Funding news search took {time.time() - funding_start:.2f}s")
+        # Collect results as they complete
+        for name, future in futures:
+            try:
+                if name == 'website':
+                    website_data = future.result(timeout=8)  # 8 second timeout
+                    if website_data:
+                        result.update(website_data)
+                    print(f"⏱️ Website search completed")
+                    
+                elif name == 'serper':
+                    serper_info = future.result(timeout=8)  # 8 second timeout
+                    print(f"⏱️ Serper API completed")
+                    
+                    # Log what we got from Serper
+                    print(f"📊 SERPER RESULTS:")
+                    print(f"  - Description: {'✓' if serper_info.get('description') else '✗'}")
+                    print(f"  - CEO: {serper_info.get('ceo_name', 'Not found')}")
+                    print(f"  - Funding: {serper_info.get('funding_info', 'Not found')}")
+                    print(f"  - Metrics: {serper_info.get('company_metrics', 'Not found')}")
+                    
+                    if serper_info['description'] and not result['description']:
+                        result['description'] = serper_info['description']
+                    if serper_info['founder_name'] and not result['founder_name']:
+                        result['founder_name'] = serper_info['founder_name']
+                    if serper_info['ceo_name'] and not result['ceo_name']:
+                        result['ceo_name'] = serper_info['ceo_name']
+                    # Add new data from Serper
+                    if serper_info.get('funding_info'):
+                        result['recent_news'] = serper_info['funding_info']
+                    if serper_info.get('company_metrics'):
+                        result['impressive_metric'] = serper_info['company_metrics']
+                        
+                elif name == 'funding':
+                    recent_news_info = future.result(timeout=8)  # 8 second timeout
+                    if recent_news_info['recent_news']:
+                        result['recent_news'] = recent_news_info['recent_news']
+                    if recent_news_info['impressive_metric']:
+                        result['impressive_metric'] = recent_news_info['impressive_metric']
+                    print(f"⏱️ Funding news search completed")
+                    
+            except Exception as e:
+                print(f"⚠️ {name} search failed or timed out: {e}")
         
         total_time = time.time() - start_time
         print(f"⏱️ Total search_company_info took {total_time:.2f}s")
         
         return result
+    
+    def _find_and_scrape_website(self, company_name: str) -> Optional[Dict]:
+        """Find and scrape company website - combined operation"""
+        website = self._find_company_website(company_name)
+        if website:
+            return self._scrape_company_website(website)
+        return None
     
     def _find_company_website(self, company_name: str) -> Optional[str]:
         """Try to find the company's official website"""
@@ -189,7 +218,7 @@ class CompanyDataScraper:
         # Check if any of these common patterns work
         for domain in common_domains:
             try:
-                response = self.session.head(domain, timeout=3, allow_redirects=True)
+                response = self.session.head(domain, timeout=2, allow_redirects=True)
                 if response.status_code < 400:
                     print(f"Found website via common pattern: {domain}")
                     return domain
@@ -200,7 +229,7 @@ class CompanyDataScraper:
         search_query = f"{company_name} official website"
         try:
             search_url = f"https://www.google.com/search?q={urllib.parse.quote(search_query)}"
-            response = self.session.get(search_url, timeout=10)
+            response = self.session.get(search_url, timeout=5)
             soup = BeautifulSoup(response.content, 'html.parser')
             
             # Look for URLs in the page text
@@ -235,7 +264,7 @@ class CompanyDataScraper:
         result = {'description': None, 'founder_name': None, 'ceo_name': None}
         
         try:
-            response = self.session.get(website_url, timeout=10)
+            response = self.session.get(website_url, timeout=5)
             soup = BeautifulSoup(response.content, 'html.parser')
             
             # Get description from meta tags or about section
@@ -359,7 +388,7 @@ class CompanyDataScraper:
             }
             
             print(f"Serper search 1: {overview_query}")
-            response = self.session.post(serper_url, json=overview_data, headers=headers, timeout=10)
+            response = self.session.post(serper_url, json=overview_data, headers=headers, timeout=5)
             
             if response.status_code == 200:
                 serper_results = response.json()
@@ -394,7 +423,7 @@ class CompanyDataScraper:
             }
             
             print(f"Serper search 2: {funding_query}")
-            response = self.session.post(serper_url, json=funding_data, headers=headers, timeout=10)
+            response = self.session.post(serper_url, json=funding_data, headers=headers, timeout=5)
             
             if response.status_code == 200:
                 funding_results = response.json()
@@ -447,7 +476,7 @@ class CompanyDataScraper:
             }
             
             print(f"Serper search 3: {leadership_query}")
-            response = self.session.post(serper_url, json=leadership_data, headers=headers, timeout=10)
+            response = self.session.post(serper_url, json=leadership_data, headers=headers, timeout=5)
             
             if response.status_code == 200:
                 leadership_results = response.json()
@@ -491,7 +520,7 @@ class CompanyDataScraper:
             # Search for company description
             desc_query = f"{company_name} company what do they do"
             desc_url = f"https://www.google.com/search?q={urllib.parse.quote(desc_query)}"
-            response = self.session.get(desc_url, timeout=10)
+            response = self.session.get(desc_url, timeout=5)
             soup = BeautifulSoup(response.content, 'html.parser')
             
             # Get any text that might contain company info
@@ -998,6 +1027,11 @@ class CompanyDataScraper:
         
         return company_data
 
+    def __del__(self):
+        """Cleanup thread pool on deletion"""
+        if hasattr(self, 'executor'):
+            self.executor.shutdown(wait=False)
+
 def generate_email(company_data: Dict[str, Optional[str]], specter_executives: list = None) -> str:
     """Generate a highly personalized outreach email using all available data"""
     company_name = company_data['company_name']
@@ -1193,14 +1227,23 @@ def generate_outreach():
         # Scrape company information
         scraper = CompanyDataScraper()
         scrape_start = time.time()
-        company_data = scraper.search_company_info(company_name)
-        print(f"⏱️ Total web scraping took {time.time() - scrape_start:.2f}s")
-        print(f"Initial scrape results - CEO: {company_data.get('ceo_name')}, Founder: {company_data.get('founder_name')}, Description: {company_data.get('description')[:50] if company_data.get('description') else 'None'}...")
         
-        # Get Specter data for the company
-        specter_start = time.time()
-        specter_data = scraper.get_specter_company_data(company_name)
-        print(f"⏱️ Total Specter API took {time.time() - specter_start:.2f}s")
+        # Create executor for concurrent operations
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            # Start web scraping
+            scrape_future = executor.submit(scraper.search_company_info, company_name)
+            
+            # Start Specter search concurrently
+            specter_future = executor.submit(scraper.get_specter_company_data, company_name)
+            
+            # Get web scraping results
+            company_data = scrape_future.result(timeout=15)
+            print(f"⏱️ Total web scraping took {time.time() - scrape_start:.2f}s")
+            print(f"Initial scrape results - CEO: {company_data.get('ceo_name')}, Founder: {company_data.get('founder_name')}, Description: {company_data.get('description')[:50] if company_data.get('description') else 'None'}...")
+            
+            # Get Specter results
+            specter_data = specter_future.result(timeout=10)
+            print(f"⏱️ Total Specter API took {time.time() - scrape_start:.2f}s")
         
         # Enhance with OpenAI using both data sources
         enhance_start = time.time()
