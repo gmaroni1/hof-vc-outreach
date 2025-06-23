@@ -49,7 +49,7 @@ MODEL_CONFIG = {
 }
 
 # Select which model to use
-ACTIVE_MODEL = "gpt-4"  # Using GPT-4 for maximum accuracy
+ACTIVE_MODEL = "gpt-3.5-turbo"  # Switched back to GPT-3.5 for 3x faster responses
 
 app = Flask(__name__)
 CORS(app, origins=["http://localhost:3000", "http://127.0.0.1:3000", "*"])  # Enable CORS for all origins for API access
@@ -57,6 +57,11 @@ CORS(app, origins=["http://localhost:3000", "http://127.0.0.1:3000", "*"])  # En
 # Check if OpenAI API key is available
 print(f"OpenAI API Key configured: {'Yes' if OPENAI_API_KEY else 'No'}")
 print(f"Specter API Key configured: {'Yes' if SPECTER_API_KEY else 'No'}")
+
+# Simple in-memory cache for recent searches (last 100 companies)
+from collections import OrderedDict
+SEARCH_CACHE = OrderedDict()
+CACHE_MAX_SIZE = 100
 
 class CompanyDataScraper:
     def __init__(self):
@@ -79,7 +84,7 @@ class CompanyDataScraper:
             'ceo_name': None
         }
         
-        # Common company data (fallback for demo purposes)
+        # Common company data (expanded cache to reduce API calls)
         known_companies = {
             'openai': {
                 'ceo_name': 'Sam Altman',
@@ -111,6 +116,54 @@ class CompanyDataScraper:
                 'technology_focus': 'collaborative productivity software',
                 'recent_news': 'introducing Notion AI and surpassing 100 million users globally',
                 'impressive_metric': 'over 100 million users across 190+ countries'
+            },
+            'databricks': {
+                'ceo_name': 'Ali Ghodsi',
+                'founder_name': 'Ali Ghodsi, Matei Zaharia',
+                'description': 'Databricks is a unified analytics platform that provides a cloud-based platform for big data processing and AI workloads.',
+                'technology_focus': 'unified data analytics and AI platform',
+                'recent_news': 'raising $500M at a $43B valuation and launching Databricks AI to democratize enterprise AI',
+                'impressive_metric': 'over 10,000 customers processing exabytes of data daily'
+            },
+            'canva': {
+                'ceo_name': 'Melanie Perkins',
+                'founder_name': 'Melanie Perkins, Cliff Obrecht',
+                'description': 'Canva is a graphic design platform that enables users to create visual content with drag-and-drop tools and templates.',
+                'technology_focus': 'democratizing design through intuitive web-based tools',
+                'recent_news': 'achieving $2.3B ARR and launching Magic Studio AI suite for enterprise customers',
+                'impressive_metric': 'over 170 million monthly active users creating 250+ designs per second'
+            },
+            'figma': {
+                'ceo_name': 'Dylan Field',
+                'founder_name': 'Dylan Field and Evan Wallace',
+                'description': 'Figma is a collaborative design platform that enables teams to design, prototype, and gather feedback in one place.',
+                'technology_focus': 'browser-based collaborative design and prototyping',
+                'recent_news': 'Adobe acquisition blocked by regulators, continuing independent growth with Dev Mode launch',
+                'impressive_metric': 'used by over 4 million designers and developers worldwide'
+            },
+            'discord': {
+                'ceo_name': 'Jason Citron',
+                'founder_name': 'Jason Citron and Stan Vishnevskiy',
+                'description': 'Discord is a communication platform designed for creating communities, offering voice, video, and text chat.',
+                'technology_focus': 'real-time communication infrastructure for communities',
+                'recent_news': 'expanding beyond gaming with $15B valuation and launching AI-powered features',
+                'impressive_metric': 'over 200 million monthly active users across 19 million active servers'
+            },
+            'plaid': {
+                'ceo_name': 'Zach Perret',
+                'founder_name': 'Zach Perret and William Hockey',
+                'description': 'Plaid is a financial technology company that provides APIs connecting applications to users bank accounts.',
+                'technology_focus': 'financial data connectivity and open banking APIs',
+                'recent_news': 'powering over 8,000 digital finance apps after Visa acquisition fell through',
+                'impressive_metric': 'connecting 12,000+ financial institutions to fintech applications'
+            },
+            'airtable': {
+                'ceo_name': 'Howie Liu',
+                'founder_name': 'Howie Liu, Andrew Ofstad, Emmett Nicholas',
+                'description': 'Airtable is a cloud-based platform that combines the simplicity of a spreadsheet with the power of a database.',
+                'technology_focus': 'low-code database and app development platform',
+                'recent_news': 'reaching $11.7B valuation and launching AI-powered workflows for enterprises',
+                'impressive_metric': 'over 450,000 organizations building custom applications'
             },
             'whering': {
                 'ceo_name': 'Bianca Rangecroft',
@@ -353,7 +406,7 @@ class CompanyDataScraper:
         return result
     
     def _search_with_serper(self, company_name: str) -> Dict[str, Any]:
-        """Use Serper API for comprehensive web search about the company"""
+        """Use Serper API for SINGLE comprehensive web search about the company"""
         result = {
             'description': None, 
             'founder_name': None, 
@@ -370,7 +423,7 @@ class CompanyDataScraper:
             print(f"SERPER_API_KEY value: {SERPER_API_KEY[:10]}..." if SERPER_API_KEY else "None")
             return self._search_google_fallback(company_name)
         
-        print(f"✅ SERPER API CONFIGURED - Making enhanced searches for {company_name}")
+        print(f"✅ SERPER API CONFIGURED - Making SINGLE optimized search for {company_name}")
         
         try:
             # Serper API endpoint
@@ -380,20 +433,22 @@ class CompanyDataScraper:
                 "Content-Type": "application/json"
             }
             
-            # Search 1: Company overview and description
-            overview_query = f"{company_name} company overview what they do"
-            overview_data = {
-                "q": overview_query,
-                "num": 10
+            # SINGLE OPTIMIZED QUERY combining all needs
+            current_year = time.strftime('%Y')
+            combined_query = f"{company_name} CEO founder funding round {current_year} valuation Series overview"
+            search_data = {
+                "q": combined_query,
+                "num": 15,  # Get more results in one go
+                "tbs": "qdr:y"  # Past year for recent info
             }
             
-            print(f"Serper search 1: {overview_query}")
-            response = self.session.post(serper_url, json=overview_data, headers=headers, timeout=5)
+            print(f"Serper SINGLE search: {combined_query}")
+            response = self.session.post(serper_url, json=search_data, headers=headers, timeout=8)
             
             if response.status_code == 200:
                 serper_results = response.json()
                 
-                # Extract description from knowledge graph or organic results
+                # Extract from knowledge graph if available
                 if 'knowledgeGraph' in serper_results:
                     kg = serper_results['knowledgeGraph']
                     if 'description' in kg:
@@ -405,34 +460,13 @@ class CompanyDataScraper:
                             elif 'Founder' in attr:
                                 result['founder_name'] = attr['Founder']
                 
-                # Get description from organic results if not found
-                if not result['description'] and 'organic' in serper_results:
-                    for item in serper_results['organic'][:3]:
-                        snippet = item.get('snippet', '')
-                        if len(snippet) > 50 and company_name.lower() in snippet.lower():
-                            result['description'] = snippet
-                            break
-            
-            # Search 2: Recent funding and news
-            current_year = time.strftime('%Y')
-            funding_query = f"{company_name} funding round {current_year} Series million billion valuation"
-            funding_data = {
-                "q": funding_query,
-                "num": 10,
-                "tbs": "qdr:y"  # Past year
-            }
-            
-            print(f"Serper search 2: {funding_query}")
-            response = self.session.post(serper_url, json=funding_data, headers=headers, timeout=5)
-            
-            if response.status_code == 200:
-                funding_results = response.json()
-                
-                if 'organic' in funding_results:
-                    for item in funding_results['organic'][:5]:
+                # Process ALL organic results in ONE PASS
+                if 'organic' in serper_results:
+                    for item in serper_results['organic']:
                         title = item.get('title', '')
                         snippet = item.get('snippet', '')
                         link = item.get('link', '')
+                        combined_text = f"{title} {snippet}"
                         
                         # Store article for reference
                         result['recent_articles'].append({
@@ -441,10 +475,11 @@ class CompanyDataScraper:
                             'link': link
                         })
                         
-                        # Extract funding information
-                        combined_text = f"{title} {snippet}"
+                        # Extract description if not found
+                        if not result['description'] and len(snippet) > 50 and company_name.lower() in snippet.lower():
+                            result['description'] = snippet
                         
-                        # Look for funding amounts
+                        # Extract funding information
                         funding_pattern = r'\$?([\d.]+)\s*(billion|million|B|M)\s*(?:Series\s*[A-Z]|funding|round|valuation)'
                         matches = re.findall(funding_pattern, combined_text, re.IGNORECASE)
                         
@@ -467,23 +502,6 @@ class CompanyDataScraper:
                                 val_amount = val_matches[0][0]
                                 val_unit = val_matches[0][1].lower()
                                 result['company_metrics'] = f"${val_amount}B valuation" if val_unit.startswith('b') else f"${val_amount}M valuation"
-            
-            # Search 3: Leadership and founder information
-            leadership_query = f"{company_name} CEO founder leadership team"
-            leadership_data = {
-                "q": leadership_query,
-                "num": 5
-            }
-            
-            print(f"Serper search 3: {leadership_query}")
-            response = self.session.post(serper_url, json=leadership_data, headers=headers, timeout=5)
-            
-            if response.status_code == 200:
-                leadership_results = response.json()
-                
-                if 'organic' in leadership_results:
-                    for item in leadership_results['organic'][:3]:
-                        text = f"{item.get('title', '')} {item.get('snippet', '')}"
                         
                         # Extract CEO/Founder names
                         ceo_patterns = [
@@ -493,7 +511,7 @@ class CompanyDataScraper:
                         ]
                         
                         for pattern in ceo_patterns:
-                            matches = re.findall(pattern, text)
+                            matches = re.findall(pattern, combined_text)
                             if matches:
                                 name = matches[0].strip()
                                 if 'CEO' in pattern and not result['ceo_name']:
@@ -1224,6 +1242,48 @@ def generate_outreach():
         print(f"\n🚀 === Processing company: {company_name} at {time.strftime('%H:%M:%S')} ===")
         print(f"OpenAI API Key available: {'Yes' if OPENAI_API_KEY else 'No'}")
         
+        # Check cache first
+        cache_key = company_name.lower()
+        if cache_key in SEARCH_CACHE:
+            print(f"💾 CACHE HIT for {company_name}!")
+            cached_data = SEARCH_CACHE[cache_key]
+            # Move to end (most recently used)
+            SEARCH_CACHE.move_to_end(cache_key)
+            
+            # Generate fresh email even for cached data
+            email_content = generate_email(cached_data['company_data'], cached_data.get('specter_executives', []))
+            
+            total_time = time.time() - request_start
+            print(f"\n✅ TOTAL REQUEST TIME (from cache): {total_time:.2f}s")
+            
+            return jsonify({
+                'success': True,
+                'data': {
+                    'company_name': cached_data['company_data'].get('company_name'),
+                    'ceo_name': cached_data['company_data'].get('ceo_name') or cached_data['company_data'].get('founder_name'),
+                    'ceo_email': cached_data.get('ceo_email'),
+                    'email_content': email_content,
+                    'subject_line': f"HOF Capital - Partnership Opportunity with {cached_data['company_data'].get('company_name')}",
+                    'company_details': {
+                        'description': cached_data['company_data'].get('description'),
+                        'technology_focus': cached_data['company_data'].get('technology_focus'),
+                        'recent_news': cached_data['company_data'].get('recent_news'),
+                        'impressive_metric': cached_data['company_data'].get('impressive_metric')
+                    }
+                },
+                'metadata': {
+                    'generated_at': time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime()),
+                    'api_version': '1.0',
+                    'processing_time_seconds': round(total_time, 2),
+                    'cache_hit': True,
+                    'debug': {
+                        'specter_configured': bool(SPECTER_API_KEY),
+                        'attempted_email_search': bool(cached_data.get('ceo_email') is not None)
+                    }
+                }
+            })
+        
+        # Not in cache, proceed with normal flow
         # Scrape company information
         scraper = CompanyDataScraper()
         scrape_start = time.time()
@@ -1266,9 +1326,23 @@ def generate_outreach():
         # Generate email with Specter executive data
         email_content = generate_email(company_data, specter_data.get('executives', []))
         
+        # Add to cache before returning
+        cache_data = {
+            'company_data': company_data,
+            'specter_executives': specter_data.get('executives', []),
+            'ceo_email': ceo_email
+        }
+        
+        # Add to cache with size limit
+        SEARCH_CACHE[cache_key] = cache_data
+        if len(SEARCH_CACHE) > CACHE_MAX_SIZE:
+            # Remove oldest item
+            SEARCH_CACHE.popitem(last=False)
+        
         # Structure the response for easy integration
         total_time = time.time() - request_start
         print(f"\n✅ TOTAL REQUEST TIME: {total_time:.2f}s")
+        print(f"💾 Cached result for future requests")
         
         if total_time > 25:
             print(f"⚠️  WARNING: Request took {total_time:.2f}s - approaching 30s timeout limit!")
@@ -1288,16 +1362,17 @@ def generate_outreach():
                     'impressive_metric': company_data.get('impressive_metric')
                 }
             },
-            'metadata': {
-                'generated_at': time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime()),
-                'api_version': '1.0',
-                'processing_time_seconds': round(total_time, 2),
-                'debug': {
-                    'specter_configured': bool(SPECTER_API_KEY),
-                    'attempted_email_search': bool(ceo_email is not None or (company_data.get('ceo_name') or company_data.get('founder_name')))
+                            'metadata': {
+                    'generated_at': time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime()),
+                    'api_version': '1.0',
+                    'processing_time_seconds': round(total_time, 2),
+                    'cache_hit': False,
+                    'debug': {
+                        'specter_configured': bool(SPECTER_API_KEY),
+                        'attempted_email_search': bool(ceo_email is not None or (company_data.get('ceo_name') or company_data.get('founder_name')))
+                    }
                 }
-            }
-        })
+            })
         
     except Exception as e:
         return jsonify({
