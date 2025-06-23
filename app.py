@@ -1443,19 +1443,52 @@ def gmail_callback():
     state = request.args.get('state', '')
     
     if not code:
-        return jsonify({
-            'success': False,
-            'error': 'No authorization code provided'
-        }), 400
+        # Return a simple HTML page that closes itself
+        return '''
+        <html>
+            <body>
+                <h3>Error: No authorization code provided</h3>
+                <p>Please close this window and try again.</p>
+                <script>
+                    setTimeout(function() { window.close(); }, 3000);
+                </script>
+            </body>
+        </html>
+        '''
     
     result = gmail_service.handle_callback(code, state)
     
-    # Redirect to frontend with result
-    frontend_url = 'http://localhost:3000' if os.getenv('FLASK_ENV') != 'production' else 'https://your-frontend-url.com'
+    # Return a simple HTML page that closes the popup
     if result['success']:
-        return redirect(f"{frontend_url}/gmail-connected?email={result['email']}")
+        return f'''
+        <html>
+            <body>
+                <h3>Gmail Connected Successfully!</h3>
+                <p>Connected as: {result['email']}</p>
+                <p>This window will close automatically...</p>
+                <script>
+                    // Notify parent window if available
+                    if (window.opener) {{
+                        window.opener.postMessage({{ type: 'gmail-connected', email: '{result['email']}' }}, '*');
+                    }}
+                    setTimeout(function() {{ window.close(); }}, 2000);
+                </script>
+            </body>
+        </html>
+        '''
     else:
-        return redirect(f"{frontend_url}/gmail-error?error={result['error']}")
+        return f'''
+        <html>
+            <body>
+                <h3>Connection Failed</h3>
+                <p>Error: {result.get('error', 'Unknown error')}</p>
+                <p>Please close this window and try again.</p>
+                <script>
+                    setTimeout(function() {{ window.close(); }}, 3000);
+                </script>
+            </body>
+        </html>
+        '''
 
 @app.route('/api/gmail/status', methods=['GET'])
 def gmail_status():
