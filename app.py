@@ -128,7 +128,16 @@ class CompanyDataScraper:
             result.update(company_info)
         
         # Use Serper API for comprehensive search
+        print("\n📡 CALLING SERPER API FOR WEB SEARCH...")
         serper_info = self._search_with_serper(company_name)
+        
+        # Log what we got from Serper
+        print(f"📊 SERPER RESULTS:")
+        print(f"  - Description: {'✓' if serper_info.get('description') else '✗'}")
+        print(f"  - CEO: {serper_info.get('ceo_name', 'Not found')}")
+        print(f"  - Funding: {serper_info.get('funding_info', 'Not found')}")
+        print(f"  - Metrics: {serper_info.get('company_metrics', 'Not found')}")
+        
         if serper_info['description'] and not result['description']:
             result['description'] = serper_info['description']
         if serper_info['founder_name'] and not result['founder_name']:
@@ -315,8 +324,12 @@ class CompanyDataScraper:
         }
         
         if not SERPER_API_KEY or SERPER_API_KEY == 'your_serper_api_key_here':
-            print("Serper API not configured, falling back to basic search")
+            print("⚠️ SERPER API NOT CONFIGURED - Using fallback Google search")
+            print(f"SERPER_API_KEY exists: {bool(SERPER_API_KEY)}")
+            print(f"SERPER_API_KEY value: {SERPER_API_KEY[:10]}..." if SERPER_API_KEY else "None")
             return self._search_google_fallback(company_name)
+        
+        print(f"✅ SERPER API CONFIGURED - Making enhanced searches for {company_name}")
         
         try:
             # Serper API endpoint
@@ -998,33 +1011,20 @@ Investor | HOF Capital"""
             import openai
             openai.api_key = OPENAI_API_KEY
             
-            # Load training examples if available
-            training_examples = []
-            try:
-                import json
-                import os
-                # Try both relative and absolute paths
-                training_file = None
-                for path in ['training_examples.json', '/app/training_examples.json', os.path.join(os.path.dirname(__file__), 'training_examples.json')]:
-                    if os.path.exists(path):
-                        training_file = path
-                        break
-                
-                if training_file:
-                    with open(training_file, 'r') as f:
-                        training_examples = json.load(f)
-                        print(f"Loaded {len(training_examples)} training examples from {training_file}")
-                else:
-                    print("Training examples file not found")
-            except Exception as e:
-                print(f"Could not load training examples: {e}")
+            # Simplified training examples - hardcoded for reliability
+            print(f"=== GENERATING EMAIL FOR {company_name} ===")
+            print(f"Using model: {MODEL_CONFIG[ACTIVE_MODEL]['model']}")
             
-            # Select relevant examples based on company category
-            selected_examples = []
-            if training_examples:
-                # Try to match by category or just take top examples
-                for ex in training_examples[:5]:  # Take top 5 examples
-                    selected_examples.append(ex['perfect_intro'])
+            # Hardcode key training examples for production reliability
+            selected_examples = [
+                '"Hi Sam, I\'ve been closely tracking OpenAI\'s extraordinary growth - hitting 200M weekly active users while maintaining your mission of ensuring AGI benefits all of humanity is truly remarkable. The way you\'ve balanced rapid commercialization with responsible AI development, especially with the recent GPT-4o launch, demonstrates the kind of transformative leadership we love to support."',
+                '"Hi Patrick, Stripe crossing $1 trillion in total payment volume is a defining moment for global internet commerce. The infrastructure you\'ve built has become so fundamental that it\'s hard to imagine the modern internet economy without it - that\'s the kind of category-defining impact we\'re passionate about supporting."',
+                '"Hi Dario, Claude 3\'s breakthrough performance combined with your recent $7.3B raise at an $18.4B valuation is reshaping the entire AI landscape. Your commitment to AI safety while shipping products that genuinely compete with and often surpass GPT-4 shows that responsible development and commercial success aren\'t mutually exclusive."'
+            ]
+            
+            print(f"Loaded {len(selected_examples)} training examples")
+            print(f"Recent news: {recent_news[:100] if recent_news else 'None'}")
+            print(f"Metric: {impressive_metric[:100] if impressive_metric else 'None'}")
             
             # Create a prompt for ONLY the intro paragraph
             prompt = f"""
