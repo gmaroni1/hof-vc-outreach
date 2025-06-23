@@ -33,10 +33,12 @@ class GmailService:
         
     def get_auth_url(self, state: str = None) -> str:
         """Generate OAuth2 authorization URL"""
+        redirect_uri = self._get_redirect_uri()
+        print(f"Using redirect URI: {redirect_uri}")
         flow = Flow.from_client_config(
             self.client_config,
             scopes=SCOPES,
-            redirect_uri=self._get_redirect_uri()
+            redirect_uri=redirect_uri
         )
         
         if state:
@@ -186,7 +188,11 @@ class GmailService:
     
     def _get_redirect_uri(self) -> str:
         """Get appropriate redirect URI based on environment"""
-        if os.getenv('FLASK_ENV') == 'production':
+        # Check multiple environment indicators for production
+        if (os.getenv('FLASK_ENV') == 'production' or 
+            os.getenv('RENDER') or 
+            os.getenv('IS_PRODUCTION') or
+            not os.getenv('FLASK_DEBUG')):
             return 'https://hof-vc-outreach.onrender.com/api/gmail/callback'
         return 'http://localhost:5001/api/gmail/callback'
     
